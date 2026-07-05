@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useTempo } from "@/context/TempoContext";
 import {
   CATEGORY_LABELS,
   getPlayersByCategory,
@@ -21,8 +22,8 @@ import {
   ShotCategory,
 } from "@/data/tempoPlayers";
 
-const BLUE = "#1A8CFF";
-const BG   = "#000000";
+const BLUE    = "#1A8CFF";
+const BG      = "#000000";
 const CARD_BG = "#111111";
 const BORDER  = "#1E1E1E";
 const TEXT    = "#FFFFFF";
@@ -37,15 +38,6 @@ function StatBox({ label, value }: { label: string; value: string }) {
     <View style={detail.statBox}>
       <Text style={detail.statLabel}>{label}</Text>
       <Text style={detail.statValue}>{value}</Text>
-    </View>
-  );
-}
-
-function TimelineNode({ label, isFirst }: { label: string; isFirst?: boolean }) {
-  return (
-    <View style={detail.timelineNode}>
-      <View style={[detail.timelineDot, isFirst && detail.timelineDotEmpty]} />
-      <Text style={detail.timelineLabel}>{label}</Text>
     </View>
   );
 }
@@ -89,13 +81,22 @@ function PlayerDetail({
           <StatBox label="DOWNSWING" value={`${player.downswing.toFixed(2)}s`} />
         </View>
 
-        {/* Timeline */}
+        {/* Timeline nodes */}
         <View style={detail.timelineRow}>
-          <TimelineNode label="START" isFirst />
+          <View style={detail.timelineNode}>
+            <View style={detail.timelineDotEmpty} />
+            <Text style={detail.timelineLabel}>START</Text>
+          </View>
           <View style={detail.timelineLine} />
-          <TimelineNode label="TOP" />
+          <View style={detail.timelineNode}>
+            <View style={detail.timelineDot} />
+            <Text style={detail.timelineLabel}>TOP</Text>
+          </View>
           <View style={detail.timelineLine} />
-          <TimelineNode label="HIT" />
+          <View style={detail.timelineNode}>
+            <View style={detail.timelineDot} />
+            <Text style={detail.timelineLabel}>HIT</Text>
+          </View>
         </View>
 
         {/* Event badge */}
@@ -131,6 +132,7 @@ function PlayerDetail({
           <Feather name="play" size={18} color={TEXT} style={{ marginRight: 8 }} />
           <Text style={detail.startBtnText}>Start Tempo</Text>
         </TouchableOpacity>
+        <Text style={detail.startHint}>Loads this tempo into the trainer and starts playback</Text>
       </ScrollView>
     </View>
   );
@@ -168,14 +170,18 @@ function PlayerCard({ player, onPress }: { player: PlayerTempo; onPress: () => v
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function TemposScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const insets  = useSafeAreaInsets();
+  const router  = useRouter();
+  const {
+    setCustomTempo,
+    setSelectedTempo,
+    setIsPlaying,
+  } = useTempo();
 
   const [activeCategory, setActiveCategory] = useState<ShotCategory>("tee");
-  const [search, setSearch] = useState("");
-  const [selectedPlayer, setSelectedPlayer] = useState<PlayerTempo | null>(null);
+  const [search,          setSearch]          = useState("");
+  const [selectedPlayer,  setSelectedPlayer]  = useState<PlayerTempo | null>(null);
 
-  // Slide animation for detail overlay
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   const openDetail = (player: PlayerTempo) => {
@@ -204,8 +210,15 @@ export default function TemposScreen() {
   );
 
   const handleStartTempo = () => {
+    if (!selectedPlayer) return;
+    // 1. Store player data as the custom tempo
+    setCustomTempo(selectedPlayer);
+    // 2. Switch the trainer to custom mode
+    setSelectedTempo("custom");
+    // 3. Auto-start playback
+    setIsPlaying(true);
+    // 4. Dismiss detail and navigate to Tones tab
     closeDetail();
-    // Navigate to Tones tab after dismiss
     setTimeout(() => router.push("/"), 260);
   };
 
@@ -229,12 +242,7 @@ export default function TemposScreen() {
             style={screen.catTab}
             onPress={() => setActiveCategory(cat)}
           >
-            <Text
-              style={[
-                screen.catLabel,
-                activeCategory === cat && screen.catLabelActive,
-              ]}
-            >
+            <Text style={[screen.catLabel, activeCategory === cat && screen.catLabelActive]}>
               {CATEGORY_LABELS[cat]}
             </Text>
             {activeCategory === cat && <View style={screen.catUnderline} />}
@@ -283,14 +291,12 @@ export default function TemposScreen() {
           style={[
             screen.overlay,
             {
-              transform: [
-                {
-                  translateY: slideAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [700, 0],
-                  }),
-                },
-              ],
+              transform: [{
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [700, 0],
+                }),
+              }],
               opacity: slideAnim,
             },
           ]}
@@ -309,56 +315,16 @@ export default function TemposScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const screen = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  tagline: {
-    color: TEXT,
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -0.3,
-  },
-  catScroll: {
-    flexGrow: 0,
-  },
-  catContent: {
-    paddingHorizontal: 16,
-    gap: 4,
-  },
-  catTab: {
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    alignItems: "center",
-  },
-  catLabel: {
-    color: MUTED,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  catLabelActive: {
-    color: TEXT,
-    fontFamily: "Inter_600SemiBold",
-  },
-  catUnderline: {
-    position: "absolute",
-    bottom: 0,
-    left: 10,
-    right: 10,
-    height: 2,
-    backgroundColor: BLUE,
-    borderRadius: 1,
-  },
-  catBorder: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: BORDER,
-    marginHorizontal: 0,
-  },
+  root:          { flex: 1, backgroundColor: BG },
+  header:        { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
+  tagline:       { color: TEXT, fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.3 },
+  catScroll:     { flexGrow: 0 },
+  catContent:    { paddingHorizontal: 16, gap: 4 },
+  catTab:        { paddingHorizontal: 10, paddingBottom: 10, alignItems: "center" },
+  catLabel:      { color: MUTED, fontSize: 14, fontFamily: "Inter_500Medium" },
+  catLabelActive:{ color: TEXT, fontFamily: "Inter_600SemiBold" },
+  catUnderline:  { position: "absolute", bottom: 0, left: 10, right: 10, height: 2, backgroundColor: BLUE, borderRadius: 1 },
+  catBorder:     { height: StyleSheet.hairlineWidth, backgroundColor: BORDER },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -372,260 +338,53 @@ const screen = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: BORDER,
   },
-  searchInput: {
-    flex: 1,
-    color: TEXT,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    padding: 0,
-  },
-  list: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: BG,
-    zIndex: 100,
-  },
+  searchInput:   { flex: 1, color: TEXT, fontSize: 14, fontFamily: "Inter_400Regular", padding: 0 },
+  list:          { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  overlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: BG, zIndex: 100 },
 });
 
 const card = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: BORDER,
-  },
-  body: {
-    flex: 1,
-  },
-  name: {
-    color: TEXT,
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-    marginBottom: 2,
-  },
-  sub: {
-    color: MUTED,
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    marginBottom: 10,
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  statBlock: {
-    gap: 2,
-  },
-  statLabel: {
-    color: MUTED,
-    fontSize: 10,
-    fontFamily: "Inter_500Medium",
-    letterSpacing: 0.5,
-  },
-  statValue: {
-    color: TEXT,
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-  },
-  divider: {
-    width: StyleSheet.hairlineWidth,
-    height: 28,
-    backgroundColor: BORDER,
-  },
-  arrow: {
-    paddingLeft: 12,
-  },
+  container:  { flexDirection: "row", alignItems: "center", paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  body:        { flex: 1 },
+  name:        { color: TEXT,  fontSize: 17, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  sub:         { color: MUTED, fontSize: 12, fontFamily: "Inter_400Regular",  marginBottom: 10 },
+  statsRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
+  statBlock:   { gap: 2 },
+  statLabel:   { color: MUTED, fontSize: 10, fontFamily: "Inter_500Medium", letterSpacing: 0.5 },
+  statValue:   { color: TEXT,  fontSize: 15, fontFamily: "Inter_700Bold" },
+  divider:     { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: BORDER },
+  arrow:       { paddingLeft: 12 },
 });
 
 const detail = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-    paddingHorizontal: 24,
-  },
-  scroll: {
-    paddingBottom: 40,
-  },
-  backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-    gap: 2,
-  },
-  backText: {
-    color: BLUE,
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-  },
-  playerName: {
-    color: TEXT,
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  playerSub: {
-    color: MUTED,
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-    letterSpacing: 1,
-    marginBottom: 28,
-  },
-  bigRatio: {
-    color: TEXT,
-    fontSize: 80,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-    letterSpacing: -4,
-    lineHeight: 88,
-  },
-  ratioLabel: {
-    color: MUTED,
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-    letterSpacing: 1.5,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  duration: {
-    color: TEXT,
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  durationLabel: {
-    color: MUTED,
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-    letterSpacing: 1.5,
-    marginTop: 2,
-    marginBottom: 24,
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 28,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: BORDER,
-  },
-  statLabel: {
-    color: MUTED,
-    fontSize: 10,
-    fontFamily: "Inter_500Medium",
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  statValue: {
-    color: TEXT,
-    fontSize: 26,
-    fontFamily: "Inter_700Bold",
-  },
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  timelineNode: {
-    alignItems: "center",
-    gap: 6,
-  },
-  timelineDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: MUTED,
-  },
-  timelineDotEmpty: {
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: MUTED,
-  },
-  timelineLabel: {
-    color: MUTED,
-    fontSize: 10,
-    fontFamily: "Inter_500Medium",
-    letterSpacing: 0.8,
-  },
-  timelineLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: "#2A2A2A",
-    marginTop: -18,
-    marginHorizontal: 4,
-  },
-  eventBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#0A1A2A",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1A3A5A",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 28,
-  },
-  eventText: {
-    color: BLUE,
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-  toggleRow: {
-    flexDirection: "row",
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: BORDER,
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 11,
-  },
-  toggleActive: {
-    backgroundColor: BLUE,
-  },
-  toggleText: {
-    color: MUTED,
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  toggleTextActive: {
-    color: TEXT,
-    fontFamily: "Inter_600SemiBold",
-  },
-  startBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: BLUE,
-    borderRadius: 16,
-    paddingVertical: 16,
-  },
-  startBtnText: {
-    color: TEXT,
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
+  container:     { flex: 1, backgroundColor: BG, paddingHorizontal: 24 },
+  scroll:        { paddingBottom: 40 },
+  backBtn:       { flexDirection: "row", alignItems: "center", marginBottom: 24, gap: 2 },
+  backText:      { color: BLUE, fontSize: 16, fontFamily: "Inter_500Medium" },
+  playerName:    { color: TEXT,  fontSize: 18, fontFamily: "Inter_700Bold",  textAlign: "center", letterSpacing: 1.5, marginBottom: 4 },
+  playerSub:     { color: MUTED, fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", letterSpacing: 1, marginBottom: 28 },
+  bigRatio:      { color: TEXT,  fontSize: 80, fontFamily: "Inter_700Bold",  textAlign: "center", letterSpacing: -4, lineHeight: 88 },
+  ratioLabel:    { color: MUTED, fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center", letterSpacing: 1.5, marginTop: 4, marginBottom: 16 },
+  duration:      { color: TEXT,  fontSize: 28, fontFamily: "Inter_700Bold",  textAlign: "center" },
+  durationLabel: { color: MUTED, fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center", letterSpacing: 1.5, marginTop: 2, marginBottom: 24 },
+  statsRow:      { flexDirection: "row", gap: 12, marginBottom: 28 },
+  statBox:       { flex: 1, backgroundColor: CARD_BG, borderRadius: 14, padding: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  statLabel:     { color: MUTED, fontSize: 10, fontFamily: "Inter_500Medium", letterSpacing: 1, marginBottom: 6 },
+  statValue:     { color: TEXT,  fontSize: 26, fontFamily: "Inter_700Bold" },
+  timelineRow:   { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 24, paddingHorizontal: 8 },
+  timelineNode:  { alignItems: "center", gap: 6 },
+  timelineDot:   { width: 14, height: 14, borderRadius: 7, backgroundColor: MUTED },
+  timelineDotEmpty: { width: 14, height: 14, borderRadius: 7, backgroundColor: "transparent", borderWidth: 2, borderColor: MUTED },
+  timelineLine:  { flex: 1, height: 2, backgroundColor: "#2A2A2A", marginTop: -18, marginHorizontal: 4 },
+  timelineLabel: { color: MUTED, fontSize: 10, fontFamily: "Inter_500Medium", letterSpacing: 0.8 },
+  eventBadge:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0A1A2A", borderWidth: StyleSheet.hairlineWidth, borderColor: "#1A3A5A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 28 },
+  eventText:     { color: BLUE, fontSize: 12, fontFamily: "Inter_500Medium" },
+  toggleRow:     { flexDirection: "row", backgroundColor: CARD_BG, borderRadius: 14, padding: 4, marginBottom: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  toggleBtn:     { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 11 },
+  toggleActive:  { backgroundColor: BLUE },
+  toggleText:    { color: MUTED, fontSize: 14, fontFamily: "Inter_500Medium" },
+  toggleTextActive: { color: TEXT, fontFamily: "Inter_600SemiBold" },
+  startBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: BLUE, borderRadius: 16, paddingVertical: 16, marginBottom: 8 },
+  startBtnText:  { color: TEXT, fontSize: 16, fontFamily: "Inter_700Bold" },
+  startHint:     { color: MUTED, fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", letterSpacing: 0.5 },
 });

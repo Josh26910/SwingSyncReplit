@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SwingTimeline } from "@/components/SwingTimeline";
 import {
-  TEMPOS,
+  getEffectiveDef,
   TempoKey,
   useTempo,
 } from "@/context/TempoContext";
@@ -52,19 +52,20 @@ export default function TonesScreen() {
     setIsPlaying,
     currentPhase,
     cycleProgress,
+    customTempo,
+    setCustomTempo,
   } = useTempo();
 
   useTempoEngine();
 
-  const def          = TEMPOS[selectedTempo];
+  // Use the effective definition — handles custom player tempo
+  const def           = getEffectiveDef(selectedTempo, customTempo);
   const cycleDuration = def.impactMs + 700;
   const topN          = def.topMs    / cycleDuration;
   const impN          = def.impactMs / cycleDuration;
+  const topFrac       = def.topMs    / def.impactMs;
 
-  // Where TOP sits on the 0→1 timeline (START=0, HIT=1)
-  const topFrac = def.topMs / def.impactMs;
-
-  // Dot position (0=START, 1=HIT) from cycleProgress
+  // Dot position (0=START, 1=HIT)
   let dotFrac = 0;
   if (isPlaying && cycleProgress > 0) {
     if (cycleProgress <= topN) {
@@ -72,10 +73,9 @@ export default function TonesScreen() {
     } else if (cycleProgress <= impN) {
       dotFrac = topFrac + ((cycleProgress - topN) / (impN - topN)) * (1 - topFrac);
     }
-    // reset phase → stays at 0
   }
 
-  // Elapsed swing time (ms) for the duration display
+  // Elapsed swing time for the duration display
   let elapsedMs = 0;
   if (isPlaying && cycleProgress > 0) {
     if (cycleProgress <= topN) {
@@ -85,11 +85,10 @@ export default function TonesScreen() {
     }
   }
 
-  const totalStr   = (def.impactMs / 1000).toFixed(2) + "s";
-  const elapsedStr = (elapsedMs / 1000).toFixed(2) + "s";
+  const totalStr    = (def.impactMs / 1000).toFixed(2) + "s";
+  const elapsedStr  = (elapsedMs / 1000).toFixed(2) + "s";
   const showElapsed = isPlaying && elapsedMs > 0;
 
-  // Ratio & per-tempo stats
   const backswingS  = (def.topMs / 1000).toFixed(2) + "s";
   const downswingS  = ((def.impactMs - def.topMs) / 1000).toFixed(2) + "s";
   const ratioNum    = def.topMs / (def.impactMs - def.topMs);
@@ -106,8 +105,15 @@ export default function TonesScreen() {
   const handleTempoSelect = (key: TempoKey) => {
     Haptics.selectionAsync();
     if (isPlaying) setIsPlaying(false);
+    // Selecting a standard tempo clears the custom player
+    if (key !== "custom") setCustomTempo(null);
     setSelectedTempo(key);
   };
+
+  // Short label for custom circle
+  const customLabel = customTempo
+    ? customTempo.name.split(" ")[1]?.slice(0, 4) ?? "Pro"
+    : null;
 
   return (
     <View
@@ -168,7 +174,51 @@ export default function TonesScreen() {
             </TouchableOpacity>
           );
         })}
+
+        {/* Custom tempo circle — appears when a player tempo is loaded */}
+        {customTempo !== null && (
+          <TouchableOpacity
+            onPress={() => handleTempoSelect("custom")}
+            activeOpacity={0.75}
+          >
+            <View
+              style={[
+                styles.tempoCircle,
+                styles.tempoCircleCustom,
+                selectedTempo === "custom" && styles.tempoCircleCustomActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tempoLabelCustom,
+                  selectedTempo === "custom" && styles.tempoLabelCustomActive,
+                ]}
+                numberOfLines={1}
+              >
+                {customLabel}
+              </Text>
+              <Text
+                style={[
+                  styles.tempoSubLabel,
+                  selectedTempo === "custom" && styles.tempoSubLabelActive,
+                ]}
+              >
+                PRO
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </ScrollView>
+
+      {/* ── Player name badge (when custom tempo active) ────────── */}
+      {selectedTempo === "custom" && customTempo !== null && (
+        <View style={styles.playerBadge}>
+          <Feather name="user" size={12} color={BLUE} />
+          <Text style={styles.playerBadgeText}>
+            {customTempo.name}  ·  {customTempo.event} {customTempo.year}
+          </Text>
+        </View>
+      )}
 
       {/* ── Main info area ─────────────────────────────────────── */}
       <View style={styles.infoArea}>
@@ -322,7 +372,7 @@ const styles = StyleSheet.create({
   tempoRow: {
     paddingHorizontal: 20,
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 6,
   },
   tempoCircle: {
     width: 60,
@@ -350,6 +400,59 @@ const styles = StyleSheet.create({
   },
   tempoLabelActive: {
     color: BLUE,
+  },
+  // Custom tempo circle
+  tempoCircleCustom: {
+    borderColor: "#2A3A2A",
+    backgroundColor: "#0D150D",
+    borderStyle: "dashed",
+  },
+  tempoCircleCustomActive: {
+    borderColor: "#00C853",
+    backgroundColor: "#071007",
+    borderStyle: "solid",
+    shadowColor: "#00C853",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  tempoLabelCustom: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: "#3A6A3A",
+  },
+  tempoLabelCustomActive: {
+    color: "#00C853",
+  },
+  tempoSubLabel: {
+    fontSize: 8,
+    fontFamily: "Inter_500Medium",
+    color: "#2A4A2A",
+    letterSpacing: 1,
+    marginTop: 1,
+  },
+  tempoSubLabelActive: {
+    color: "#00C853",
+  },
+  // Player badge
+  playerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    backgroundColor: "#0A1A2A",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: "#1A3A5A",
+  },
+  playerBadgeText: {
+    color: BLUE,
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
   },
   infoArea: {
     flex: 1,
