@@ -51,7 +51,7 @@ export default function TonesScreen() {
     isPlaying,
     setIsPlaying,
     currentPhase,
-    dialProgress,
+    cycleProgress,
   } = useTempo();
 
   useTempoEngine();
@@ -182,7 +182,7 @@ export default function TonesScreen() {
         <TempoDial
           tempo={selectedTempo}
           phase={currentPhase}
-          progress={dialProgress}
+          cycleProgress={cycleProgress}
         />
         <View style={styles.timingInfo}>
           <View style={styles.timingItem}>

@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 
-import { TEMPOS, TempoKey, useTempo } from "@/context/TempoContext";
+import { TEMPOS, useTempo } from "@/context/TempoContext";
 
 let audioCtx: AudioContext | null = null;
 
@@ -20,146 +20,105 @@ function getAudioCtx(): AudioContext | null {
   return audioCtx;
 }
 
-function playWebBeep(
-  frequency: number = 880,
-  duration: number = 0.08,
-  gain: number = 0.4
-) {
+function playWebBeep(frequency = 880, duration = 0.08, gain = 0.4) {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-    gainNode.gain.setValueAtTime(gain, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + duration);
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.connect(g);
+    g.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+    g.gain.setValueAtTime(gain, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
   } catch {
-    // silently ignore audio errors
+    // ignore
   }
 }
 
 function triggerStart() {
-  if (Platform.OS === "web") {
-    playWebBeep(660, 0.06, 0.3);
-  } else {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }
+  if (Platform.OS === "web") playWebBeep(660, 0.06, 0.3);
+  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
-
 function triggerTop() {
-  if (Platform.OS === "web") {
-    playWebBeep(880, 0.08, 0.45);
-  } else {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }
+  if (Platform.OS === "web") playWebBeep(880, 0.08, 0.45);
+  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 }
-
 function triggerImpact() {
-  if (Platform.OS === "web") {
-    playWebBeep(1100, 0.12, 0.6);
-  } else {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-  }
+  if (Platform.OS === "web") playWebBeep(1100, 0.12, 0.6);
+  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 }
 
 export function useTempoEngine() {
-  const { isPlaying, selectedTempo, setCurrentPhase, setDialProgress } =
+  const { isPlaying, selectedTempo, setCurrentPhase, setCycleProgress } =
     useTempo();
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const animFrameRef = useRef<number>(0);
+  const stateRef = useRef({ startTime: 0, running: false });
+  const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cycleInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const animInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopEngine = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    stateRef.current.running = false;
+    pendingTimers.current.forEach(clearTimeout);
+    pendingTimers.current = [];
+    if (cycleInterval.current) {
+      clearInterval(cycleInterval.current);
+      cycleInterval.current = null;
     }
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = 0;
+    if (animInterval.current) {
+      clearInterval(animInterval.current);
+      animInterval.current = null;
     }
     setCurrentPhase("ready");
-    setDialProgress(0);
-  }, [setCurrentPhase, setDialProgress]);
+    setCycleProgress(0);
+  }, [setCurrentPhase, setCycleProgress]);
 
   const startEngine = useCallback(() => {
     const tempo = TEMPOS[selectedTempo];
-    const cycleDuration = tempo.impactMs + 600;
+    const cycleDuration = tempo.impactMs + 700; // full cycle including follow-through
+    stateRef.current.running = true;
 
     const runCycle = () => {
-      startTimeRef.current = Date.now();
+      stateRef.current.startTime = Date.now();
       setCurrentPhase("start");
       triggerStart();
 
-      const topTimer = setTimeout(() => {
+      const t1 = setTimeout(() => {
         setCurrentPhase("top");
         triggerTop();
       }, tempo.topMs);
 
-      const impactTimer = setTimeout(() => {
+      const t2 = setTimeout(() => {
         setCurrentPhase("impact");
         triggerImpact();
       }, tempo.impactMs);
 
-      return { topTimer, impactTimer };
+      pendingTimers.current = [t1, t2];
     };
 
-    const timers = runCycle();
-    let topTimer = timers.topTimer;
-    let impactTimer = timers.impactTimer;
+    runCycle();
 
-    intervalRef.current = setInterval(() => {
-      clearTimeout(topTimer);
-      clearTimeout(impactTimer);
-      const newTimers = runCycle();
-      topTimer = newTimers.topTimer;
-      impactTimer = newTimers.impactTimer;
+    cycleInterval.current = setInterval(() => {
+      pendingTimers.current.forEach(clearTimeout);
+      runCycle();
     }, cycleDuration);
 
-    const animateProgress = () => {
-      const elapsed = Date.now() - startTimeRef.current;
-      const progress = Math.min(elapsed / tempo.impactMs, 1);
-      setDialProgress(progress);
-      animFrameRef.current = requestAnimationFrame(animateProgress);
-    };
-
-    if (Platform.OS === "web") {
-      animFrameRef.current = requestAnimationFrame(animateProgress);
-    } else {
-      const progressInterval = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current;
-        const progress = Math.min(elapsed / tempo.impactMs, 1);
-        setDialProgress(progress);
-      }, 16);
-      const origStop = stopEngine;
-      intervalRef.current = setInterval(() => {
-        clearTimeout(topTimer);
-        clearTimeout(impactTimer);
-        const newTimers = runCycle();
-        topTimer = newTimers.topTimer;
-        impactTimer = newTimers.impactTimer;
-      }, cycleDuration);
-      return () => {
-        clearInterval(progressInterval);
-        origStop();
-      };
-    }
-  }, [selectedTempo, setCurrentPhase, setDialProgress, stopEngine]);
+    // Drive cycleProgress at ~30 fps for smooth golfer animation
+    animInterval.current = setInterval(() => {
+      if (!stateRef.current.running) return;
+      const elapsed = Date.now() - stateRef.current.startTime;
+      const progress = Math.min(elapsed / cycleDuration, 1);
+      setCycleProgress(progress);
+    }, 33);
+  }, [selectedTempo, setCurrentPhase, setCycleProgress]);
 
   useEffect(() => {
-    if (isPlaying) {
-      startEngine();
-    } else {
-      stopEngine();
-    }
-    return () => {
-      stopEngine();
-    };
+    if (isPlaying) startEngine();
+    else stopEngine();
+    return stopEngine;
   }, [isPlaying, selectedTempo, startEngine, stopEngine]);
 }

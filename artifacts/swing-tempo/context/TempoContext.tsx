@@ -69,8 +69,9 @@ interface TempoContextValue {
   setIsPlaying: (p: boolean) => void;
   currentPhase: SwingPhase;
   setCurrentPhase: (p: SwingPhase) => void;
-  dialProgress: number;
-  setDialProgress: (n: number) => void;
+  /** 0–1 over the full cycle duration (backswing → downswing → follow-through → reset) */
+  cycleProgress: number;
+  setCycleProgress: (n: number) => void;
 }
 
 const TempoContext = createContext<TempoContextValue | null>(null);
@@ -81,7 +82,7 @@ export function TempoProvider({ children }: { children: React.ReactNode }) {
   const [audioMode, setAudioMode] = useState<AudioMode>("tones");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<SwingPhase>("ready");
-  const [dialProgress, setDialProgress] = useState(0);
+  const [cycleProgress, setCycleProgress] = useState(0);
 
   return (
     <TempoContext.Provider
@@ -96,8 +97,8 @@ export function TempoProvider({ children }: { children: React.ReactNode }) {
         setIsPlaying,
         currentPhase,
         setCurrentPhase,
-        dialProgress,
-        setDialProgress,
+        cycleProgress,
+        setCycleProgress,
       }}
     >
       {children}
