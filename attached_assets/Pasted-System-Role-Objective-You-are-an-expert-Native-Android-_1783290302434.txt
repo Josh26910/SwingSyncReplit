@@ -1,0 +1,53 @@
+System Role & Objective:
+You are an expert Native Android Developer and UI/UX Designer specializing in Kotlin, Jetpack Compose, and low-latency media frameworks. Your task is to write the complete, production-ready codebase for a native Android application called "[INSERT_CHOSEN_NAME_HERE]". The app is a premium golf swing tempo training and video analysis tool using a Kotlin-based Gradle build system.
+
+1. Technical Stack Requirements
+- Language: Kotlin
+- UI Framework: Jetpack Compose (Material 3)
+- Build System: Gradle with Kotlin DSL (build.gradle.kts)
+- Low-Latency Audio Engine: Android 'SoundPool' (configured with AudioAttributes.USAGE_GAME or USAGE_ASSISTANCE_SONIFICATION for sub-millisecond precision beeps)
+- Video & Track Playback: Jetpack Media3 (ExoPlayer) for seamless background audio mixing and precise video seeking.
+
+2. Core Mathematical & Audio Engine (30 FPS Standard)
+Implement a precise timing mechanism using Kotlin coroutines or a high-resolution timer loop to trigger SoundPool audio assets based on standard 30 FPS frame intervals:
+- 21/7 Tempo: Takeaway at 0ms -> Top of Swing at 700ms (21 frames) -> Impact at 933.3ms (+7 frames).
+- 18/6 Tempo: Takeaway at 0ms -> Top of Swing at 600ms (18 frames) -> Impact at 800ms (+6 frames).
+- 24/8 Tempo: Takeaway at 0ms -> Top of Swing at 800ms (24 frames) -> Impact at 1066.7ms (+8 frames).
+- 27/9 Tempo: Takeaway at 0ms -> Top of Swing at 900ms (27 frames) -> Impact at 1200ms (+9 frames).
+- 30/10 Tempo: Takeaway at 0ms -> Top of Swing at 1000ms (30 frames) -> Impact at 1333.3ms (+10 frames).
+
+Audio Modes:
+- Tones: Short, high-frequency sine-wave electronic beeps loaded into SoundPool memory.
+- Voice: High-quality WAV/MP3 audio clips ("Start", "Top", "Hit") triggered at identical millisecond intervals.
+
+3. UI/UX & Compose Layout (Strict Asset Requirements)
+- Theme: Deep Pitch Black background (#000000), Electric Blue (#1A8CFF) for active items, Crimson Red (#FF3B30) for key indicators.
+- Core Component: A custom Compose 'Canvas' rendering a circular radial dial. Draw ticks mimicking a clock face, with highlighted red ticks at the exact angles corresponding to the selected tempo's Top of Swing and Impact marks.
+- Central Graphic Asset: Center a premium, highly detailed, anatomically accurate vector silhouette of a real golfer frozen at the top of their backswing inside the dial. It must look like an authentic athletic silhouette derived from a real human swing—absolutely no basic stickmen, block figures, geometric placeholders, or primitive shapes. The club angle, posture, and body lines must perfectly mimic a true pro golf stance.
+- Navigation: A Jetpack Compose 'NavigationBar' managing a 5-tab architecture (Tones, Tracks, Videos, Analysis, Profile).
+
+4. Screen Architecture Specifications
+
+Tab 1: Tones (The Main Trainer)
+- Implement two rows of Compose 'SingleChoiceSegmentedButtonRow' for toggles: [Long Game / Short Game] and [Tones / Voice].
+- A horizontal scrollable row of custom circular Compose 'Button' components for the tempo ratios (18/6, 21/7, etc.).
+- A prominent Play/Stop floating action button that toggles a looping state machine using a Kotlin Coroutine 'Flow' to emit audio triggers continuously.
+
+Tab 2: Tracks (Audio Mixer)
+- Use Jetpack Media3 ExoPlayer to stream or play local ambient audio tracks ("On the Dance Floor", "Texas Wedge", "Island Course") and Binaural Alpha Waves ("Medalist", "Under Par").
+- Configure the audio focus and mixing so ExoPlayer loops the background audio smoothly while SoundPool overlays the rhythm tones sharply over the track without ducking or lagging.
+
+Tab 3: Videos (Instructional Portal)
+- A lazy vertical grid ('LazyVerticalGrid') showcasing video thumbnail cards. Clicking a card opens an in-app ExoPlayer canvas to play educational videos on tempo science.
+
+Tab 4: Analysis (Video Frame Counter Engine)
+- Intent system to launch the native device camera capturing high-framerate MP4s, or importing from the system gallery via ActivityResultContracts.GetContent.
+- Integrate an ExoPlayer instance configured for exact seeking (seekParameters = SeekParameters.EXACT).
+- Provide precise frame-by-frame scrubbing buttons using `player.seekTo()` calculations mapped directly to microseconds (e.g., +/- 33.33ms per frame for a 30fps clip).
+- UI inputs allowing users to mark Frame A (Takeaway), Frame B (Top), and Frame C (Impact). The UI must calculate the dynamic ratio ((B-A)/(C-B)) and display an accuracy score comparing it to the perfect 3:1 gold standard.
+
+Tab 5: Profile & Auth
+- Clean Jetpack Compose 'OutlinedTextField' components for Email and Password.
+- A settings list using modern Material 3 'ListItem' elements detailing Edit Profile, Security, App Info, and Logout.
+
+Please output the complete, modular Kotlin source code, including the MainActivity, Compose UI components, Audio/Video ViewModels, and the essential build.gradle.kts setup.

@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "T7CAkENBNhdQMkcQ-3IAf"
+uri = "file://artifacts/swing-tempo/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "5NJNobe4Ixt4FpJXk0umu"
+uri = "file://artifacts/swing-tempo/assets/images/golfer.png"
+type = "image"
+title = "generated_image"
