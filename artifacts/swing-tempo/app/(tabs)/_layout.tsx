@@ -65,12 +65,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="tracks"
+        name="tempos"
         options={{
-          title: "Tracks",
+          title: "Tempos",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
-              name="music-note-eighth"
+              name="account-group-outline"
               size={size}
               color={color}
             />
