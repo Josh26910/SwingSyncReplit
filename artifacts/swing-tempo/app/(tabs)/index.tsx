@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
-  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -13,34 +12,35 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { TempoDial } from "@/components/TempoDial";
+import { SwingTimeline } from "@/components/SwingTimeline";
 import {
   TEMPOS,
   TempoKey,
   useTempo,
 } from "@/context/TempoContext";
 import { useTempoEngine } from "@/hooks/useTempoEngine";
-import { useColors } from "@/hooks/useColors";
 
 const TEMPO_KEYS: TempoKey[] = ["18/6", "21/7", "24/8", "27/9", "30/10"];
 
-const PHASE_LABELS: Record<string, string> = {
-  ready: "READY",
-  start: "TAKEAWAY",
-  top: "TOP",
-  impact: "IMPACT",
-};
+const BLUE    = "#1A8CFF";
+const CRIMSON = "#FF3B30";
 
 const PHASE_COLORS: Record<string, string> = {
-  ready: "#444444",
-  start: "#1A8CFF",
-  top: "#FFB300",
-  impact: "#FF3B30",
+  ready:  "#444444",
+  start:  BLUE,
+  top:    "#FFB300",
+  impact: CRIMSON,
+};
+
+const PHASE_LABELS: Record<string, string> = {
+  ready:  "READY",
+  start:  "TAKEAWAY",
+  top:    "TOP",
+  impact: "IMPACT",
 };
 
 export default function TonesScreen() {
   const insets = useSafeAreaInsets();
-  const colors = useColors();
   const {
     selectedTempo,
     setSelectedTempo,
@@ -56,7 +56,45 @@ export default function TonesScreen() {
 
   useTempoEngine();
 
-  const def = TEMPOS[selectedTempo];
+  const def          = TEMPOS[selectedTempo];
+  const cycleDuration = def.impactMs + 700;
+  const topN          = def.topMs    / cycleDuration;
+  const impN          = def.impactMs / cycleDuration;
+
+  // Where TOP sits on the 0→1 timeline (START=0, HIT=1)
+  const topFrac = def.topMs / def.impactMs;
+
+  // Dot position (0=START, 1=HIT) from cycleProgress
+  let dotFrac = 0;
+  if (isPlaying && cycleProgress > 0) {
+    if (cycleProgress <= topN) {
+      dotFrac = (cycleProgress / topN) * topFrac;
+    } else if (cycleProgress <= impN) {
+      dotFrac = topFrac + ((cycleProgress - topN) / (impN - topN)) * (1 - topFrac);
+    }
+    // reset phase → stays at 0
+  }
+
+  // Elapsed swing time (ms) for the duration display
+  let elapsedMs = 0;
+  if (isPlaying && cycleProgress > 0) {
+    if (cycleProgress <= topN) {
+      elapsedMs = (cycleProgress / topN) * def.topMs;
+    } else if (cycleProgress <= impN) {
+      elapsedMs = def.topMs + ((cycleProgress - topN) / (impN - topN)) * (def.impactMs - def.topMs);
+    }
+  }
+
+  const totalStr   = (def.impactMs / 1000).toFixed(2) + "s";
+  const elapsedStr = (elapsedMs / 1000).toFixed(2) + "s";
+  const showElapsed = isPlaying && elapsedMs > 0;
+
+  // Ratio & per-tempo stats
+  const backswingS  = (def.topMs / 1000).toFixed(2) + "s";
+  const downswingS  = ((def.impactMs - def.topMs) / 1000).toFixed(2) + "s";
+  const ratioNum    = def.topMs / (def.impactMs - def.topMs);
+  const ratioStr    = ratioNum.toFixed(2) + ":1";
+
   const phaseColor = PHASE_COLORS[currentPhase] ?? "#444444";
   const phaseLabel = PHASE_LABELS[currentPhase] ?? "READY";
 
@@ -74,102 +112,56 @@ export default function TonesScreen() {
   return (
     <View
       style={[
-        styles.container,
+        styles.root,
         {
-          paddingTop: insets.top + (Platform.OS === "web" ? 20 : 10),
+          paddingTop:    insets.top + (Platform.OS === "web" ? 20 : 10),
           paddingBottom: insets.bottom + (Platform.OS === "web" ? 84 : 60),
         },
       ]}
     >
+      {/* ── Header ─────────────────────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.appTitle}>SWING TEMPO</Text>
-        <View style={styles.phaseIndicator}>
+        <View style={styles.phaseChip}>
           <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
-          <Text style={[styles.phaseText, { color: phaseColor }]}>
-            {phaseLabel}
-          </Text>
+          <Text style={[styles.phaseText, { color: phaseColor }]}>{phaseLabel}</Text>
         </View>
       </View>
 
-      <View style={styles.toggleRow}>
-        <View style={styles.segmentGroup}>
-          {(["long", "short"] as const).map((mode) => (
+      {/* ── Game mode ──────────────────────────────────────────── */}
+      <View style={styles.px}>
+        <View style={styles.segGroup}>
+          {(["long", "short"] as const).map((m) => (
             <TouchableOpacity
-              key={mode}
-              style={[
-                styles.segmentBtn,
-                gameMode === mode && styles.segmentBtnActive,
-              ]}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setGameMode(mode);
-              }}
-              activeOpacity={0.7}
+              key={m}
+              style={[styles.segBtn, gameMode === m && styles.segBtnActive]}
+              onPress={() => { Haptics.selectionAsync(); setGameMode(m); }}
+              activeOpacity={0.75}
             >
-              <Text
-                style={[
-                  styles.segmentLabel,
-                  gameMode === mode && styles.segmentLabelActive,
-                ]}
-              >
-                {mode === "long" ? "Long Game" : "Short Game"}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.segmentGroup}>
-          {(["tones", "voice"] as const).map((mode) => (
-            <TouchableOpacity
-              key={mode}
-              style={[
-                styles.segmentBtn,
-                audioMode === mode && styles.segmentBtnActive,
-              ]}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setAudioMode(mode);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.segmentLabel,
-                  audioMode === mode && styles.segmentLabelActive,
-                ]}
-              >
-                {mode === "tones" ? "Tones" : "Voice"}
+              <Text style={[styles.segLabel, gameMode === m && styles.segLabelActive]}>
+                {m === "long" ? "Long Game" : "Short Game"}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
+      {/* ── Tempo selector ─────────────────────────────────────── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tempoScroll}
+        contentContainerStyle={styles.tempoRow}
       >
         {TEMPO_KEYS.map((key) => {
-          const isSelected = key === selectedTempo;
+          const active = key === selectedTempo;
           return (
             <TouchableOpacity
               key={key}
               onPress={() => handleTempoSelect(key)}
               activeOpacity={0.75}
             >
-              <View
-                style={[
-                  styles.tempoCircle,
-                  isSelected && styles.tempoCircleActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tempoLabel,
-                    isSelected && styles.tempoLabelActive,
-                  ]}
-                >
+              <View style={[styles.tempoCircle, active && styles.tempoCircleActive]}>
+                <Text style={[styles.tempoLabel, active && styles.tempoLabelActive]}>
                   {key}
                 </Text>
               </View>
@@ -178,80 +170,116 @@ export default function TonesScreen() {
         })}
       </ScrollView>
 
-      <View style={styles.dialContainer}>
-        <TempoDial
-          tempo={selectedTempo}
-          phase={currentPhase}
-          cycleProgress={cycleProgress}
-        />
-        <View style={styles.timingInfo}>
-          <View style={styles.timingItem}>
-            <View
-              style={[styles.timingDot, { backgroundColor: "#FF3B30" }]}
-            />
-            <Text style={styles.timingLabel}>TOP</Text>
-            <Text style={styles.timingValue}>{def.topMs}ms</Text>
+      {/* ── Main info area ─────────────────────────────────────── */}
+      <View style={styles.infoArea}>
+
+        {/* Big ratio */}
+        <Text style={styles.bigRatio}>{ratioStr}</Text>
+        <Text style={styles.ratioLabel}>TEMPO RATIO</Text>
+
+        {/* Duration — shows elapsed / total during playback */}
+        <View style={styles.durationRow}>
+          {showElapsed ? (
+            <>
+              <Text style={[styles.durationNum, { color: BLUE }]}>{elapsedStr}</Text>
+              <Text style={styles.durationSep}> / </Text>
+              <Text style={styles.durationNum}>{totalStr}</Text>
+            </>
+          ) : (
+            <Text style={styles.durationNum}>{totalStr}</Text>
+          )}
+        </View>
+        <Text style={styles.durationLabel}>START TO IMPACT</Text>
+
+        {/* Stat boxes */}
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Text style={styles.statBoxLabel}>BACKSWING</Text>
+            <Text style={styles.statBoxValue}>{backswingS}</Text>
           </View>
-          <View style={styles.timingDivider} />
-          <View style={styles.timingItem}>
-            <View
-              style={[styles.timingDot, { backgroundColor: "#FF3B30" }]}
-            />
-            <Text style={styles.timingLabel}>IMPACT</Text>
-            <Text style={styles.timingValue}>{def.impactMs}ms</Text>
+          <View style={styles.statBox}>
+            <Text style={styles.statBoxLabel}>DOWNSWING</Text>
+            <Text style={styles.statBoxValue}>{downswingS}</Text>
           </View>
-          <View style={styles.timingDivider} />
-          <View style={styles.timingItem}>
-            <View
-              style={[styles.timingDot, { backgroundColor: "#1A8CFF" }]}
-            />
-            <Text style={styles.timingLabel}>RATIO</Text>
-            <Text style={styles.timingValue}>3:1</Text>
-          </View>
+        </View>
+
+        {/* Timeline */}
+        <View style={styles.timelineWrap}>
+          <SwingTimeline
+            topFrac={topFrac}
+            dotFrac={dotFrac}
+            isPlaying={isPlaying}
+            currentPhase={currentPhase}
+          />
+        </View>
+
+      </View>
+
+      {/* ── Audio mode toggle ──────────────────────────────────── */}
+      <View style={styles.px}>
+        <View style={styles.segGroup}>
+          {(["tones", "voice"] as const).map((m) => (
+            <TouchableOpacity
+              key={m}
+              style={[styles.segBtn, audioMode === m && styles.segBtnActive]}
+              onPress={() => { Haptics.selectionAsync(); setAudioMode(m); }}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.segLabel, audioMode === m && styles.segLabelActive]}>
+                {m === "tones" ? "Tones" : "Voice"}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      <Pressable
-        onPress={handlePlayStop}
-        style={({ pressed }) => [
-          styles.fab,
-          isPlaying && styles.fabActive,
-          pressed && { transform: [{ scale: 0.95 }] },
-        ]}
-      >
-        <Feather
-          name={isPlaying ? "square" : "play"}
-          size={28}
-          color="#FFFFFF"
-        />
-        <Text style={styles.fabLabel}>{isPlaying ? "STOP" : "START"}</Text>
-      </Pressable>
+      {/* ── Play / Stop button ─────────────────────────────────── */}
+      <View style={styles.px}>
+        <Pressable
+          onPress={handlePlayStop}
+          style={({ pressed }) => [
+            styles.playBtn,
+            isPlaying && styles.playBtnStop,
+            pressed && { transform: [{ scale: 0.97 }] },
+          ]}
+        >
+          <Feather
+            name={isPlaying ? "square" : "play"}
+            size={20}
+            color="#FFFFFF"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.playBtnLabel}>{isPlaying ? "Stop" : "Play"}</Text>
+        </Pressable>
+        <Text style={styles.loopHint}>AUTO-LOOP ON  ·  TAP TO START</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: "#000000",
-    alignItems: "center",
+  },
+  px: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
   },
   header: {
-    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   appTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
     letterSpacing: 3,
-    fontFamily: "Inter_700Bold",
   },
-  phaseIndicator: {
+  phaseChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -263,17 +291,10 @@ const styles = StyleSheet.create({
   },
   phaseText: {
     fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 2,
     fontFamily: "Inter_600SemiBold",
+    letterSpacing: 2,
   },
-  toggleRow: {
-    width: "100%",
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 16,
-  },
-  segmentGroup: {
+  segGroup: {
     flexDirection: "row",
     backgroundColor: "#111111",
     borderRadius: 10,
@@ -281,33 +302,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#222222",
   },
-  segmentBtn: {
+  segBtn: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: 8,
     alignItems: "center",
   },
-  segmentBtnActive: {
-    backgroundColor: "#1A8CFF",
+  segBtnActive: {
+    backgroundColor: BLUE,
   },
-  segmentLabel: {
-    fontSize: 12,
-    color: "#666666",
-    fontWeight: "600",
+  segLabel: {
+    fontSize: 13,
     fontFamily: "Inter_600SemiBold",
+    color: "#555555",
   },
-  segmentLabelActive: {
+  segLabelActive: {
     color: "#FFFFFF",
   },
-  tempoScroll: {
+  tempoRow: {
     paddingHorizontal: 20,
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   tempoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 1.5,
     borderColor: "#2A2A2A",
     backgroundColor: "#0D0D0D",
@@ -315,9 +335,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tempoCircleActive: {
-    borderColor: "#1A8CFF",
+    borderColor: BLUE,
     backgroundColor: "#0A1A2A",
-    shadowColor: "#1A8CFF",
+    shadowColor: BLUE,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
@@ -325,77 +345,115 @@ const styles = StyleSheet.create({
   },
   tempoLabel: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#555555",
     fontFamily: "Inter_700Bold",
+    color: "#555555",
   },
   tempoLabelActive: {
-    color: "#1A8CFF",
+    color: BLUE,
   },
-  dialContainer: {
-    alignItems: "center",
+  infoArea: {
     flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 24,
     justifyContent: "center",
-    gap: 16,
   },
-  timingInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 0,
-  },
-  timingItem: {
-    alignItems: "center",
-    paddingHorizontal: 20,
-    gap: 4,
-  },
-  timingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  timingLabel: {
-    fontSize: 9,
-    letterSpacing: 2,
-    color: "#444444",
-    fontFamily: "Inter_600SemiBold",
-    fontWeight: "600",
-  },
-  timingValue: {
-    fontSize: 14,
-    color: "#CCCCCC",
-    fontWeight: "700",
+  bigRatio: {
+    fontSize: 76,
     fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+    letterSpacing: -3,
+    lineHeight: 84,
   },
-  timingDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "#222222",
+  ratioLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#555555",
+    letterSpacing: 2,
+    marginTop: 2,
+    marginBottom: 16,
   },
-  fab: {
+  durationRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  durationNum: {
+    fontSize: 30,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
+  durationSep: {
+    fontSize: 22,
+    fontFamily: "Inter_500Medium",
+    color: "#444444",
+  },
+  durationLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#555555",
+    letterSpacing: 2,
+    marginTop: 2,
+    marginBottom: 20,
+  },
+  statsRow: {
+    flexDirection: "row",
+    width: "100%",
+    gap: 12,
+    marginBottom: 28,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: "#111111",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#1E1E1E",
+  },
+  statBoxLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    color: "#555555",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  statBoxValue: {
+    fontSize: 26,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
+  timelineWrap: {
+    width: "100%",
+    marginBottom: 4,
+  },
+  playBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    backgroundColor: "#1A8CFF",
-    paddingHorizontal: 48,
+    backgroundColor: BLUE,
+    borderRadius: 16,
     paddingVertical: 16,
-    borderRadius: 50,
-    marginBottom: 16,
-    shadowColor: "#1A8CFF",
+    marginBottom: 8,
+    shadowColor: BLUE,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
   },
-  fabActive: {
-    backgroundColor: "#FF3B30",
-    shadowColor: "#FF3B30",
+  playBtnStop: {
+    backgroundColor: "#1A1A1A",
+    shadowColor: "#000000",
+    borderWidth: 1,
+    borderColor: "#333333",
   },
-  fabLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 2,
+  playBtnLabel: {
+    fontSize: 17,
     fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
+  loopHint: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
+    color: "#333333",
+    textAlign: "center",
+    letterSpacing: 1.2,
   },
 });
