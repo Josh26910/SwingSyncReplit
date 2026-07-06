@@ -116,14 +116,16 @@ export default function TonesScreen() {
     : null;
 
   return (
-    <View
-      style={[
-        styles.root,
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[
+        styles.scrollContent,
         {
           paddingTop:    insets.top + (Platform.OS === "web" ? 20 : 10),
-          paddingBottom: insets.bottom + (Platform.OS === "web" ? 84 : 60),
+          paddingBottom: insets.bottom + (Platform.OS === "web" ? 100 : 80),
         },
       ]}
+      showsVerticalScrollIndicator={false}
     >
       {/* ── Header ─────────────────────────────────────────────── */}
       <View style={styles.header}>
@@ -146,6 +148,24 @@ export default function TonesScreen() {
             >
               <Text style={[styles.segLabel, gameMode === m && styles.segLabelActive]}>
                 {m === "long" ? "Long Game" : "Short Game"}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* ── Audio mode toggle (moved up) ───────────────────────── */}
+      <View style={styles.px}>
+        <View style={styles.segGroup}>
+          {(["tones", "voice"] as const).map((m) => (
+            <TouchableOpacity
+              key={m}
+              style={[styles.segBtn, audioMode === m && styles.segBtnActive]}
+              onPress={() => { Haptics.selectionAsync(); setAudioMode(m); }}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.segLabel, audioMode === m && styles.segLabelActive]}>
+                {m === "tones" ? "Tones" : "Voice"}
               </Text>
             </TouchableOpacity>
           ))}
@@ -220,14 +240,14 @@ export default function TonesScreen() {
         </View>
       )}
 
-      {/* ── Main info area ─────────────────────────────────────── */}
+      {/* ── Main info area (no heavy centering) ─────────────────── */}
       <View style={styles.infoArea}>
 
         {/* Big ratio */}
         <Text style={styles.bigRatio}>{ratioStr}</Text>
         <Text style={styles.ratioLabel}>TEMPO RATIO</Text>
 
-        {/* Duration — shows elapsed / total during playback */}
+        {/* Duration */}
         <View style={styles.durationRow}>
           {showElapsed ? (
             <>
@@ -240,6 +260,25 @@ export default function TonesScreen() {
           )}
         </View>
         <Text style={styles.durationLabel}>START TO IMPACT</Text>
+
+        {/* Play / Stop button (moved between duration and stats) */}
+        <Pressable
+          onPress={handlePlayStop}
+          style={({ pressed }) => [
+            styles.playBtn,
+            isPlaying && styles.playBtnStop,
+            pressed && { transform: [{ scale: 0.97 }] },
+          ]}
+        >
+          <Feather
+            name={isPlaying ? "square" : "play"}
+            size={20}
+            color="#FFFFFF"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.playBtnLabel}>{isPlaying ? "Stop" : "Play"}</Text>
+        </Pressable>
+        <Text style={styles.loopHint}>AUTO-LOOP ON  ·  TAP TO START</Text>
 
         {/* Stat boxes */}
         <View style={styles.statsRow}>
@@ -262,48 +301,8 @@ export default function TonesScreen() {
             currentPhase={currentPhase}
           />
         </View>
-
       </View>
-
-      {/* ── Audio mode toggle ──────────────────────────────────── */}
-      <View style={styles.px}>
-        <View style={styles.segGroup}>
-          {(["tones", "voice"] as const).map((m) => (
-            <TouchableOpacity
-              key={m}
-              style={[styles.segBtn, audioMode === m && styles.segBtnActive]}
-              onPress={() => { Haptics.selectionAsync(); setAudioMode(m); }}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.segLabel, audioMode === m && styles.segLabelActive]}>
-                {m === "tones" ? "Tones" : "Voice"}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* ── Play / Stop button ─────────────────────────────────── */}
-      <View style={styles.px}>
-        <Pressable
-          onPress={handlePlayStop}
-          style={({ pressed }) => [
-            styles.playBtn,
-            isPlaying && styles.playBtnStop,
-            pressed && { transform: [{ scale: 0.97 }] },
-          ]}
-        >
-          <Feather
-            name={isPlaying ? "square" : "play"}
-            size={20}
-            color="#FFFFFF"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.playBtnLabel}>{isPlaying ? "Stop" : "Play"}</Text>
-        </Pressable>
-        <Text style={styles.loopHint}>AUTO-LOOP ON  ·  TAP TO START</Text>
-      </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -312,9 +311,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   px: {
     paddingHorizontal: 20,
     marginBottom: 12,
+    width: "100%",
   },
   header: {
     flexDirection: "row",
@@ -322,6 +325,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 24,
     marginBottom: 14,
+    width: "100%",
   },
   appTitle: {
     fontSize: 20,
@@ -455,10 +459,10 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
   },
   infoArea: {
-    flex: 1,
+    width: "100%",
     alignItems: "center",
     paddingHorizontal: 24,
-    justifyContent: "center",
+    paddingTop: 10,
   },
   bigRatio: {
     fontSize: 76,
@@ -495,13 +499,13 @@ const styles = StyleSheet.create({
     color: "#555555",
     letterSpacing: 2,
     marginTop: 2,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   statsRow: {
     flexDirection: "row",
     width: "100%",
     gap: 12,
-    marginBottom: 28,
+    marginBottom: 20,
   },
   statBox: {
     flex: 1,
