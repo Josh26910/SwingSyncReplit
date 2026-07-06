@@ -21,7 +21,7 @@ export const CATEGORY_LABELS: Record<ShotCategory, string> = {
   putting:    "Putting",
 };
 
-const DATA: PlayerTempo[] = [
+export const TEMPO_PLAYERS: PlayerTempo[] = [
   // ── OFF THE TEE ──────────────────────────────────────────────────────────────
   {
     id: "tiger-tee",
@@ -237,5 +237,5 @@ const DATA: PlayerTempo[] = [
 ];
 
 export function getPlayersByCategory(cat: ShotCategory): PlayerTempo[] {
-  return DATA.filter((p) => p.category === cat);
+  return TEMPO_PLAYERS.filter((p) => p.category === cat);
 }

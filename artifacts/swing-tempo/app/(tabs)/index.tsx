@@ -92,7 +92,11 @@ export default function TonesScreen() {
   const backswingS  = (def.topMs / 1000).toFixed(2) + "s";
   const downswingS  = ((def.impactMs - def.topMs) / 1000).toFixed(2) + "s";
   const ratioNum    = def.topMs / (def.impactMs - def.topMs);
-  const ratioStr    = ratioNum.toFixed(2) + ":1";
+  // Show clean integers (3:1), one decimal only when needed (3.5:1)
+  const ratioStr    = (() => {
+    const r = Math.round(ratioNum * 10) / 10;
+    return (r % 1 === 0 ? `${Math.round(r)}` : `${r.toFixed(1)}`) + ":1";
+  })();
 
   const phaseColor = PHASE_COLORS[currentPhase] ?? "#444444";
   const phaseLabel = PHASE_LABELS[currentPhase] ?? "READY";
