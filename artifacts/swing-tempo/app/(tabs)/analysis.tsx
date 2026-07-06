@@ -175,6 +175,34 @@ export default function AnalysisScreen() {
 
   const analysis = getAnalysis();
 
+  // Live frame counter: a single growing number during the backswing, then
+  // a backswing/downswing split that keeps counting through the downswing,
+  // freezing into the final ratio once impact is reached — mirrors the
+  // reference clip's counting badge instead of a static number.
+  const takeawayFrame = marks.takeaway !== null ? Math.round(marks.takeaway / MS_PER_FRAME) : null;
+  const topFrame = marks.top !== null ? Math.round(marks.top / MS_PER_FRAME) : null;
+  const impactFrame = marks.impact !== null ? Math.round(marks.impact / MS_PER_FRAME) : null;
+
+  let counterPhase: "hidden" | "back" | "down" | "done" = "hidden";
+  let backCount = 0;
+  let downCount = 0;
+
+  if (takeawayFrame !== null && currentFrame >= takeawayFrame) {
+    if (topFrame === null || currentFrame < topFrame) {
+      counterPhase = "back";
+      backCount = currentFrame - takeawayFrame;
+    } else {
+      backCount = topFrame - takeawayFrame;
+      if (impactFrame === null || currentFrame < impactFrame) {
+        counterPhase = "down";
+        downCount = currentFrame - topFrame;
+      } else {
+        counterPhase = "done";
+        downCount = impactFrame - topFrame;
+      }
+    }
+  }
+
   const handleStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
     const pos = status.positionMillis ?? 0;
@@ -315,12 +343,32 @@ export default function AnalysisScreen() {
               <Text style={styles.phaseWord}>{previewWord}</Text>
             </View>
           )}
-          {analysis && (
-            <View style={[styles.gradeOverlay, { borderColor: analysis.gradeColor + "66" }]}>
-              <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
-                {analysis.grade}
-              </Text>
-              <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
+          {counterPhase !== "hidden" && (
+            <View
+              style={[
+                styles.gradeOverlay,
+                counterPhase === "done" && analysis
+                  ? { borderColor: analysis.gradeColor + "66" }
+                  : styles.gradeOverlayCounting,
+              ]}
+              pointerEvents="none"
+            >
+              {counterPhase === "done" && analysis ? (
+                <>
+                  <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
+                    {analysis.grade}
+                  </Text>
+                  <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
+                </>
+              ) : counterPhase === "back" ? (
+                <Text style={[styles.counterNum, { color: BLUE }]}>{backCount}</Text>
+              ) : (
+                <View style={styles.counterSplitRow}>
+                  <Text style={[styles.counterNum, { color: BLUE }]}>{backCount}</Text>
+                  <Text style={styles.counterSlash}>/</Text>
+                  <Text style={[styles.counterNum, { color: RED }]}>{downCount}</Text>
+                </View>
+              )}
             </View>
           )}
           <View style={styles.watermark} pointerEvents="none">
@@ -671,8 +719,8 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     marginHorizontal: 0,
   },
-  video: { width: "100%", height: 220 },
-  videoFullscreen: { height: "100%" },
+  video: { width: "100%", aspectRatio: 9 / 16 },
+  videoFullscreen: { aspectRatio: undefined, height: "100%" },
   fullscreenCloseBtn: {
     position: "absolute",
     top: 10,
@@ -802,6 +850,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: "#CCCCCC",
     marginTop: 1,
+  },
+  gradeOverlayCounting: { borderColor: "#333333" },
+  counterNum: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+  },
+  counterSplitRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+  },
+  counterSlash: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    color: "#555555",
   },
   nameInput: {
     backgroundColor: "#0D0D0D",
