@@ -8,7 +8,9 @@
  *     Pass 2 – normal speed + beeps at markers
  *     Pass 3 – slow motion (0.6×) + beeps at markers
  * • "Analysis" button jumps to the Analysis tab
- * • Pro Swings sub-tab shows tour players with their tempo data
+ * • Pro Swings sub-tab shows tour players with their tempo data, and also
+ *   lets you import a pro's swing video to run through the same
+ *   marker + tempo-preview flow as your own swings
  */
 
 import { Feather } from "@expo/vector-icons";
@@ -62,9 +64,11 @@ export default function VideosScreen() {
   const insets     = useSafeAreaInsets();
   const { audioMode } = useTempo();
 
-  const [tab,     setTab    ] = useState<"mine" | "pro">("mine");
-  const [swings,  setSwings ] = useState<Swing[]>([]);
-  const [active,  setActive ] = useState<Swing | null>(null);
+  const [tab,       setTab      ] = useState<"mine" | "pro">("mine");
+  const [swings,    setSwings   ] = useState<Swing[]>([]);
+  const [proSwings, setProSwings] = useState<Swing[]>([]);
+  const [active,    setActive   ] = useState<Swing | null>(null);
+  const [activeOrigin, setActiveOrigin] = useState<"mine" | "pro">("mine");
 
   // Playback state
   const videoRef        = useRef<Video>(null);
@@ -96,12 +100,34 @@ export default function VideosScreen() {
       markers: EMPTY_MARKERS,
     };
     setSwings((prev) => [newSwing, ...prev]);
-    openAnalyzer(newSwing);
+    openAnalyzer(newSwing, "mine");
   }, [swings.length]);
 
+  const pickProVideo = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (res.canceled || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    const newSwing: Swing = {
+      id:      Date.now().toString(),
+      uri:     asset.uri,
+      name:    `Pro Swing ${proSwings.length + 1}`,
+      markers: EMPTY_MARKERS,
+    };
+    setProSwings((prev) => [newSwing, ...prev]);
+    openAnalyzer(newSwing, "pro");
+  }, [proSwings.length]);
+
   /* ── Open analyzer ─────────────────────────────────────────────── */
-  const openAnalyzer = (swing: Swing) => {
+  const openAnalyzer = (swing: Swing, origin: "mine" | "pro") => {
     setActive(swing);
+    setActiveOrigin(origin);
     setMarkers(swing.markers);
     setPosMs(0);
     setDurMs(0);
@@ -113,7 +139,8 @@ export default function VideosScreen() {
   const closeAnalyzer = async () => {
     await videoRef.current?.pauseAsync();
     if (active) {
-      setSwings((prev) =>
+      const setList = activeOrigin === "mine" ? setSwings : setProSwings;
+      setList((prev) =>
         prev.map((s) => (s.id === active.id ? { ...s, markers } : s)),
       );
     }
@@ -365,7 +392,7 @@ export default function VideosScreen() {
             const { takeaway, top, impact } = swing.markers;
             const allSet = takeaway !== null && top !== null && impact !== null;
             return (
-              <Pressable key={swing.id} style={styles.swingCard} onPress={() => openAnalyzer(swing)}>
+              <Pressable key={swing.id} style={styles.swingCard} onPress={() => openAnalyzer(swing, "mine")}>
                 <View style={styles.swingThumb}>
                   <Feather name="video" size={24} color="#333" />
                 </View>
@@ -403,6 +430,50 @@ export default function VideosScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <>
+              <Pressable style={styles.addCard} onPress={pickProVideo}>
+                <View style={styles.addIcon}>
+                  <Feather name="plus" size={28} color={BLUE} />
+                </View>
+                <Text style={styles.addTitle}>Import Pro Swing Video</Text>
+                <Text style={styles.addSub}>Analyze a pro's swing with the same Takeaway / Top / Impact tempo preview</Text>
+              </Pressable>
+
+              {proSwings.map((swing) => {
+                const { takeaway, top, impact } = swing.markers;
+                const allSet = takeaway !== null && top !== null && impact !== null;
+                return (
+                  <Pressable key={swing.id} style={styles.swingCard} onPress={() => openAnalyzer(swing, "pro")}>
+                    <View style={styles.swingThumb}>
+                      <Feather name="video" size={24} color="#333" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.swingName}>{swing.name}</Text>
+                      <View style={styles.swingBadges}>
+                        {(["takeaway", "top", "impact"] as const).map((k) => {
+                          const c = { takeaway: GREEN, top: ORANGE, impact: RED }[k];
+                          const set = swing.markers[k] !== null;
+                          return (
+                            <View key={k} style={[styles.badge, { backgroundColor: set ? c + "22" : "#111" }]}>
+                              <View style={[styles.badgeDot, { backgroundColor: set ? c : "#333" }]} />
+                              <Text style={[styles.badgeText, { color: set ? c : "#444" }]}>
+                                {k.charAt(0).toUpperCase() + k.slice(1)}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                    <View style={{ alignItems: "flex-end", gap: 4 }}>
+                      {allSet && <View style={styles.readyDot} />}
+                      <Feather name="chevron-right" size={18} color="#333" />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </>
+          }
           renderItem={({ item }) => (
             <View style={styles.proCard}>
               <View style={styles.proAvatar}>
