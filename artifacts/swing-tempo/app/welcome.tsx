@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/context/AuthContext";
 import {
   durationToLevel,
   finalizeSession,
@@ -99,6 +100,7 @@ function computeTotalThisMonth(sessions: Session[]): number {
 
 export default function WelcomeScreen() {
   const insets  = useSafeAreaInsets();
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [grid,     setGrid    ] = useState<ReturnType<typeof buildGrid> | null>(null);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -144,7 +146,7 @@ export default function WelcomeScreen() {
         <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
           <View>
             <Text style={styles.welcomeSmall}>Welcome back,</Text>
-            <Text style={styles.welcomeName}>Golfer</Text>
+            <Text style={styles.welcomeName}>{user?.name || "Golfer"}</Text>
           </View>
           <View style={styles.avatarCircle}>
             <Feather name="user" size={26} color={BLUE} />
