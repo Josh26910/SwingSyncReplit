@@ -297,6 +297,7 @@ export default function AnalysisScreen() {
                 style={styles.video}
                 resizeMode={ResizeMode.CONTAIN}
                 isLooping={false}
+                progressUpdateIntervalMillis={MS_PER_FRAME}
                 onPlaybackStatusUpdate={handleStatus}
               />
               <View style={styles.frameOverlay}>
