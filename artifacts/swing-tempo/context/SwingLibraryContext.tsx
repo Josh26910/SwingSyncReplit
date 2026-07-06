@@ -13,6 +13,8 @@ export interface Swing {
   uri: string;
   name: string;
   markers: Markers;
+  /** Optional caption shown over the video, e.g. the golfer's name. */
+  golferName?: string;
 }
 
 export type SwingOrigin = "mine" | "pro";
