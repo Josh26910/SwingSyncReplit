@@ -9,7 +9,10 @@
  */
 
 import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system";
+// SDK 54 replaced expo-file-system's default API with a File/Directory/Paths
+// based one; cacheDirectory/writeAsStringAsync/EncodingType only exist on
+// the legacy subpath.
+import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 /* ──────────────────────────────────────────────────────────────────
