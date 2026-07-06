@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -53,6 +54,7 @@ function toTitleCase(text: string): string {
 
 export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const videoRef = useRef<Video>(null);
   const { audioMode, setAudioMode, gameMode, setGameMode } = useTempo();
   const { activeSwing, activeOrigin, addSwing, updateSwing, setActive } = useSwingLibrary();
@@ -60,6 +62,7 @@ export default function AnalysisScreen() {
 
   const [currentMs, setCurrentMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewPass, setPreviewPass] = useState<0 | 1 | 2 | 3>(0);
   const [previewWord, setPreviewWord] = useState("");
@@ -86,6 +89,7 @@ export default function AnalysisScreen() {
   useEffect(() => {
     setCurrentMs(0);
     setDurationMs(0);
+    setVideoAspect(null);
     setIsPlaying(false);
     setPreviewPass(0);
     setPreviewWord("");
@@ -209,6 +213,19 @@ export default function AnalysisScreen() {
     }
   }
 
+  // Docked (non-fullscreen) mode sizes the video box to the source's real
+  // aspect ratio instead of a fixed height, so there's no dead letterbox
+  // space for the frame counter/name caption/watermark to float in.
+  const handleReadyForDisplay = (event: { naturalSize: { width: number; height: number } }) => {
+    const { width, height } = event.naturalSize;
+    if (width > 0 && height > 0) setVideoAspect(width / height);
+  };
+
+  const dockedVideoWidth = screenWidth - 40; // matches videoWrapper's marginHorizontal:20
+  const dockedVideoHeight = videoAspect
+    ? Math.min(Math.max(dockedVideoWidth / videoAspect, 180), 340)
+    : 240;
+
   const handleStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
     const pos = status.positionMillis ?? 0;
@@ -310,11 +327,16 @@ export default function AnalysisScreen() {
           <Video
             ref={videoRef}
             source={{ uri: videoUri }}
-            style={[styles.video, isFullscreen && styles.videoFullscreen]}
+            style={[
+              styles.video,
+              !isFullscreen && { height: dockedVideoHeight },
+              isFullscreen && styles.videoFullscreen,
+            ]}
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
             onPlaybackStatusUpdate={handleStatus}
+            onReadyForDisplay={handleReadyForDisplay}
           />
           {previewPass === 0 && (
             <View style={styles.frameOverlay}>
@@ -526,7 +548,12 @@ export default function AnalysisScreen() {
                 </View>
 
                 <View style={styles.accuracyRow}>
-                  <View style={styles.scoreCircle}>
+                  <View
+                    style={[
+                      styles.scoreCircle,
+                      { borderColor: analysis.gradeColor + "55" },
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.scoreNumber,
@@ -1005,10 +1032,9 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#111111",
+    backgroundColor: "#161616",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#222222",
+    borderWidth: 1.5,
     flexDirection: "row",
     alignItems: "baseline" as const,
     gap: 0,
