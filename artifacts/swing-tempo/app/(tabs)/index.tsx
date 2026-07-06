@@ -157,7 +157,7 @@ export default function TonesScreen() {
       {/* ── Audio mode toggle (moved up) ───────────────────────── */}
       <View style={styles.px}>
         <View style={styles.segGroup}>
-          {(["tones", "voice"] as const).map((m) => (
+          {(["tones", "piano", "voice"] as const).map((m) => (
             <TouchableOpacity
               key={m}
               style={[styles.segBtn, audioMode === m && styles.segBtnActive]}
@@ -165,7 +165,7 @@ export default function TonesScreen() {
               activeOpacity={0.75}
             >
               <Text style={[styles.segLabel, audioMode === m && styles.segLabelActive]}>
-                {m === "tones" ? "Tones" : "Voice"}
+                {m === "tones" ? "Tones" : m === "piano" ? "Piano" : "Voice"}
               </Text>
             </TouchableOpacity>
           ))}
@@ -272,9 +272,9 @@ export default function TonesScreen() {
         >
           <Feather
             name={isPlaying ? "square" : "play"}
-            size={20}
+            size={32}
             color="#FFFFFF"
-            style={{ marginRight: 8 }}
+            style={{ marginRight: 12 }}
           />
           <Text style={styles.playBtnLabel}>{isPlaying ? "Stop" : "Play"}</Text>
         </Pressable>
@@ -536,14 +536,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: BLUE,
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 24,
+    paddingVertical: 28,
     marginBottom: 8,
     shadowColor: BLUE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 12,
   },
   playBtnStop: {
     backgroundColor: "#1A1A1A",
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     borderColor: "#333333",
   },
   playBtnLabel: {
-    fontSize: 17,
+    fontSize: 24,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
   },

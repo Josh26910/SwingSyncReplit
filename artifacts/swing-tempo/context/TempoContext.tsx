@@ -4,7 +4,7 @@ import type { PlayerTempo } from "@/data/tempoPlayers";
 
 export type TempoKey = "18/6" | "21/7" | "24/8" | "27/9" | "30/10" | "custom";
 export type GameMode  = "long" | "short";
-export type AudioMode = "tones" | "voice";
+export type AudioMode = "tones" | "piano" | "voice";
 
 export interface TempoDefinition {
   key: TempoKey;

@@ -20,7 +20,9 @@ function getAudioCtx(): AudioContext | null {
   return audioCtx;
 }
 
-function playWebBeep(frequency = 880, duration = 0.08, gain = 0.4) {
+/* ── Audio helpers ────────────────────────────────────────────────── */
+
+function playTone(frequency = 880, duration = 0.08, gain = 0.4) {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
@@ -34,20 +36,85 @@ function playWebBeep(frequency = 880, duration = 0.08, gain = 0.4) {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + duration);
+  } catch { /* ignore */ }
+}
+
+function playPiano(frequency = 880, duration = 0.5, gain = 0.35) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g);
+    g.connect(ctx.destination);
+    // Triangle wave has richer harmonics → closer to piano-ish tone
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+    // ADSR-ish envelope: fast attack, short decay, gentle release
+    const now = ctx.currentTime;
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(gain, now + 0.02);   // attack
+    g.gain.exponentialRampToValueAtTime(gain * 0.4, now + 0.15); // decay
+    g.gain.exponentialRampToValueAtTime(0.001, now + duration); // release
+    osc.start(now);
+    osc.stop(now + duration);
+  } catch { /* ignore */ }
+}
+
+/** Speak a word using the best available TTS engine */
+async function speak(word: string) {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const u = new SpeechSynthesisUtterance(word);
+      u.rate  = 1.1;
+      u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    }
+    return;
+  }
+  try {
+    const Speech = (await import("expo-speech")).default;
+    Speech.speak(word, { rate: 1.1, pitch: 1.0, language: "en" });
   } catch {
-    // ignore
+    // expo-speech unavailable → fall back silently
   }
 }
 
-function triggerStart()  { Platform.OS === "web" ? playWebBeep(660, 0.06, 0.3)  : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  }
-function triggerTop()    { Platform.OS === "web" ? playWebBeep(880, 0.08, 0.45) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
-function triggerImpact() { Platform.OS === "web" ? playWebBeep(1100, 0.12, 0.6) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);  }
+/* ── Trigger helpers wired to audio mode ──────────────────────────── */
+
+function triggerStart(audioMode: string) {
+  if (Platform.OS !== "web") {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+  if (audioMode === "tones")  { playTone(660, 0.06, 0.3); }
+  if (audioMode === "piano")  { playPiano(523.25, 0.35, 0.35); } // C5
+  if (audioMode === "voice")  { speak("start"); }
+}
+
+function triggerTop(audioMode: string) {
+  if (Platform.OS !== "web") {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }
+  if (audioMode === "tones")  { playTone(880, 0.08, 0.45); }
+  if (audioMode === "piano")  { playPiano(659.25, 0.45, 0.40); } // E5
+  if (audioMode === "voice")  { speak("top"); }
+}
+
+function triggerImpact(audioMode: string) {
+  if (Platform.OS !== "web") {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  }
+  if (audioMode === "tones")  { playTone(1100, 0.12, 0.6); }
+  if (audioMode === "piano")  { playPiano(880.0, 0.55, 0.45); }  // A5
+  if (audioMode === "voice")  { speak("impact"); }
+}
 
 export function useTempoEngine() {
   const {
     isPlaying,
     selectedTempo,
     customTempo,
+    audioMode,
     setCurrentPhase,
     setCycleProgress,
   } = useTempo();
@@ -76,10 +143,10 @@ export function useTempoEngine() {
     const runCycle = () => {
       stateRef.current.startTime = Date.now();
       setCurrentPhase("start");
-      triggerStart();
+      triggerStart(audioMode);
 
-      const t1 = setTimeout(() => { setCurrentPhase("top");    triggerTop();    }, tempo.topMs);
-      const t2 = setTimeout(() => { setCurrentPhase("impact"); triggerImpact(); }, tempo.impactMs);
+      const t1 = setTimeout(() => { setCurrentPhase("top");    triggerTop(audioMode);    }, tempo.topMs);
+      const t2 = setTimeout(() => { setCurrentPhase("impact"); triggerImpact(audioMode); }, tempo.impactMs);
 
       pendingTimers.current = [t1, t2];
     };

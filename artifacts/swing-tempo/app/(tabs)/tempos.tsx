@@ -384,7 +384,7 @@ const detail = StyleSheet.create({
   toggleActive:  { backgroundColor: BLUE },
   toggleText:    { color: MUTED, fontSize: 14, fontFamily: "Inter_500Medium" },
   toggleTextActive: { color: TEXT, fontFamily: "Inter_600SemiBold" },
-  startBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: BLUE, borderRadius: 16, paddingVertical: 16, marginBottom: 8 },
-  startBtnText:  { color: TEXT, fontSize: 16, fontFamily: "Inter_700Bold" },
+  startBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: BLUE, borderRadius: 24, paddingVertical: 28, marginBottom: 8, shadowColor: BLUE, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 12 },
+  startBtnText:  { color: TEXT, fontSize: 24, fontFamily: "Inter_700Bold" },
   startHint:     { color: MUTED, fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", letterSpacing: 0.5 },
 });
