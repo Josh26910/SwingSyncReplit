@@ -57,19 +57,19 @@ export default function VideosScreen() {
       if (status !== "granted") return;
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: false,
+        // Lets the OS's own picker UI (trim handles on iOS) crop the clip
+        // before it's returned, instead of us building a trim tool in-app.
+        allowsEditing: true,
         quality: 1,
       });
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
       const list = origin === "mine" ? swings : proSwings;
       const newSwing: Swing = {
-        id:          Date.now().toString(),
-        uri:         asset.uri,
-        name:        `${origin === "pro" ? "Pro Swing" : "Swing"} ${list.length + 1}`,
-        markers:     EMPTY_MARKERS,
-        trimStartMs: 0,
-        trimEndMs:   null,
+        id:      Date.now().toString(),
+        uri:     asset.uri,
+        name:    `${origin === "pro" ? "Pro Swing" : "Swing"} ${list.length + 1}`,
+        markers: EMPTY_MARKERS,
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);

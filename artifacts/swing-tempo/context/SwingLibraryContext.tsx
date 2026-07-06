@@ -13,10 +13,6 @@ export interface Swing {
   uri: string;
   name: string;
   markers: Markers;
-  /** Trim in point, ms. Defaults to 0 (start of clip). */
-  trimStartMs: number;
-  /** Trim out point, ms. null means "end of clip" (no trim applied). */
-  trimEndMs: number | null;
 }
 
 export type SwingOrigin = "mine" | "pro";

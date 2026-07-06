@@ -212,9 +212,10 @@ async function playNativeSound(
   try {
     const sound = await loadNativeSound(key, freq, dur, gain, wave, adsr);
     if (!sound) return;
-    await sound.stopAsync();
-    await sound.setPositionAsync(0);
-    await sound.playAsync();
+    // A single replayAsync() call is one native bridge round-trip instead of
+    // three (stop + seek + play) — that saved latency is what keeps beeps
+    // audibly in sync with the video at normal speed.
+    await sound.replayAsync();
   } catch { /* ignore */ }
 }
 
@@ -282,7 +283,7 @@ export function playImpact(mode: string) {
   if (Platform.OS === "web") {
     if (mode === "tones") webTone(1100, 0.14, 0.55);
     if (mode === "piano") webPiano(880.0, 0.65);
-    if (mode === "voice") speakWord("impact");
+    if (mode === "voice") speakWord("hit");
     return;
   }
   if (mode === "tones") playNativeSound("tone_impact", 1100, 0.18, 0.65);

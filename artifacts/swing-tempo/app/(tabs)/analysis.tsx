@@ -57,9 +57,6 @@ export default function AnalysisScreen() {
 
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
-  const trimStartMs = activeSwing?.trimStartMs ?? 0;
-  const trimEndMs = activeSwing?.trimEndMs ?? null;
-  const effectiveEndMs = trimEndMs ?? durationMs;
 
   const currentFrame = Math.round(currentMs / MS_PER_FRAME);
 
@@ -83,18 +80,18 @@ export default function AnalysisScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["videos"],
-      allowsEditing: false,
+      // Lets the OS's own picker UI (trim handles on iOS) crop the clip
+      // before it's returned, instead of us building a trim tool in-app.
+      allowsEditing: true,
       quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
       const origin = activeOrigin ?? "mine";
       const newSwing: Swing = {
-        id:          Date.now().toString(),
-        uri:         result.assets[0].uri,
-        name:        `Swing ${Date.now()}`,
-        markers:     EMPTY_MARKERS,
-        trimStartMs: 0,
-        trimEndMs:   null,
+        id:      Date.now().toString(),
+        uri:     result.assets[0].uri,
+        name:    `Swing ${Date.now()}`,
+        markers: EMPTY_MARKERS,
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);
@@ -123,25 +120,6 @@ export default function AnalysisScreen() {
   const clearMark = (mark: keyof Markers) => {
     if (!activeSwing) return;
     updateSwing(activeOrigin, activeSwing.id, { markers: { ...marks, [mark]: null } });
-  };
-
-  const setTrimStart = () => {
-    if (!activeSwing) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const newStart = Math.max(0, Math.min(currentMs, effectiveEndMs - MS_PER_FRAME));
-    updateSwing(activeOrigin, activeSwing.id, { trimStartMs: newStart });
-  };
-
-  const setTrimEnd = () => {
-    if (!activeSwing) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const newEnd = Math.min(durationMs, Math.max(currentMs, trimStartMs + MS_PER_FRAME));
-    updateSwing(activeOrigin, activeSwing.id, { trimEndMs: newEnd });
-  };
-
-  const resetTrim = () => {
-    if (!activeSwing) return;
-    updateSwing(activeOrigin, activeSwing.id, { trimStartMs: 0, trimEndMs: null });
   };
 
   const getAnalysis = () => {
@@ -187,7 +165,7 @@ export default function AnalysisScreen() {
     setIsPlaying(status.isPlaying);
 
     const pr = previewRef.current;
-    const end = trimEndMs ?? status.durationMillis ?? durationMs;
+    const end = status.durationMillis ?? durationMs;
 
     if (pr.active) {
       if (marks.takeaway !== null && !pr.fired.has("takeaway") && pos >= marks.takeaway) {
@@ -211,19 +189,18 @@ export default function AnalysisScreen() {
           setPreviewPass(0);
           videoRef.current?.setRateAsync(1.0, true);
           videoRef.current?.pauseAsync();
+          videoRef.current?.setPositionAsync(0);
         } else {
           pr.pass = nextPass as 1 | 2 | 3;
           pr.fired = new Set();
           setPreviewPass(nextPass as 1 | 2 | 3);
-          videoRef.current?.setPositionAsync(trimStartMs).then(async () => {
+          videoRef.current?.setPositionAsync(0).then(async () => {
             if (nextPass === 3) await videoRef.current?.setRateAsync(0.6, true);
             await videoRef.current?.playAsync();
             pr.transitioning = false;
           });
         }
       }
-    } else if (trimEndMs !== null && pos >= trimEndMs) {
-      videoRef.current?.pauseAsync();
     }
   };
 
@@ -233,7 +210,7 @@ export default function AnalysisScreen() {
     previewRef.current = { active: true, pass: 1, fired: new Set(), transitioning: false };
     setPreviewPass(1);
     await videoRef.current.setRateAsync(1.0, true);
-    await videoRef.current.setPositionAsync(trimStartMs);
+    await videoRef.current.setPositionAsync(0);
     await videoRef.current.playAsync();
   };
 
@@ -242,6 +219,7 @@ export default function AnalysisScreen() {
     setPreviewPass(0);
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
+    await videoRef.current?.setPositionAsync(0);
   };
 
   // Export is a stub for now: it runs the same in-app preview as the Preview
@@ -419,39 +397,6 @@ export default function AnalysisScreen() {
                   );
                 })}
               </View>
-            </View>
-
-            <View style={styles.marksSection}>
-              <View style={styles.trimHeaderRow}>
-                <Text style={styles.sectionLabel}>TRIM SWING</Text>
-                {(trimStartMs > 0 || trimEndMs !== null) && (
-                  <Pressable onPress={resetTrim} style={styles.trimResetBtn}>
-                    <Feather name="rotate-ccw" size={12} color="#444" />
-                    <Text style={styles.trimResetText}>Reset</Text>
-                  </Pressable>
-                )}
-              </View>
-              <View style={styles.marksRow}>
-                <View style={styles.markCard}>
-                  <Text style={styles.markLabel}>START</Text>
-                  <Text style={styles.markValue}>{Math.round(trimStartMs / MS_PER_FRAME)}f</Text>
-                  <Pressable style={[styles.setMarkBtn, { borderColor: BLUE }]} onPress={setTrimStart}>
-                    <Text style={[styles.setMarkLabel, { color: BLUE }]}>SET HERE</Text>
-                  </Pressable>
-                </View>
-                <View style={styles.markCard}>
-                  <Text style={styles.markLabel}>END</Text>
-                  <Text style={styles.markValue}>
-                    {trimEndMs !== null ? `${Math.round(trimEndMs / MS_PER_FRAME)}f` : "END"}
-                  </Text>
-                  <Pressable style={[styles.setMarkBtn, { borderColor: BLUE }]} onPress={setTrimEnd}>
-                    <Text style={[styles.setMarkLabel, { color: BLUE }]}>SET HERE</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <Text style={styles.hintText}>
-                Scrub to the desired start/end frame, then tap "Set Here" to trim dead space around the swing
-              </Text>
             </View>
 
             {analysis ? (
@@ -701,22 +646,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 10,
     fontFamily: "Inter_600SemiBold",
-  },
-  trimHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  trimResetBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 10,
-  },
-  trimResetText: {
-    fontSize: 11,
-    color: "#444444",
-    fontFamily: "Inter_500Medium",
   },
   marksRow: { flexDirection: "row", gap: 8 },
   markCard: {
