@@ -31,6 +31,12 @@ const BLUE = "#1A8CFF";
 const RED = "#FF3B30";
 const ORANGE = "#FF9F0A";
 
+const PHASE_WORDS: Record<"takeaway" | "top" | "impact", string> = {
+  takeaway: "TAKEAWAY",
+  top: "TOP",
+  impact: "IMPACT",
+};
+
 interface PreviewState {
   active: boolean;
   pass: 0 | 1 | 2 | 3;
@@ -41,13 +47,14 @@ interface PreviewState {
 export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
-  const { audioMode } = useTempo();
+  const { audioMode, setAudioMode } = useTempo();
   const { activeSwing, activeOrigin, addSwing, updateSwing, setActive } = useSwingLibrary();
 
   const [currentMs, setCurrentMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewPass, setPreviewPass] = useState<0 | 1 | 2 | 3>(0);
+  const [previewWord, setPreviewWord] = useState("");
   const previewRef = useRef<PreviewState>({
     active: false,
     pass: 0,
@@ -66,6 +73,7 @@ export default function AnalysisScreen() {
     setDurationMs(0);
     setIsPlaying(false);
     setPreviewPass(0);
+    setPreviewWord("");
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
   }, [activeSwing?.id]);
 
@@ -171,14 +179,17 @@ export default function AnalysisScreen() {
       if (marks.takeaway !== null && !pr.fired.has("takeaway") && pos >= marks.takeaway) {
         pr.fired.add("takeaway");
         playStart(audioMode);
+        setPreviewWord(PHASE_WORDS.takeaway);
       }
       if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
         pr.fired.add("top");
         playTop(audioMode);
+        setPreviewWord(PHASE_WORDS.top);
       }
       if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
         pr.fired.add("impact");
         playImpact(audioMode);
+        setPreviewWord(PHASE_WORDS.impact);
       }
 
       if (!pr.transitioning && end > 0 && pos >= end) {
@@ -187,6 +198,7 @@ export default function AnalysisScreen() {
         if (nextPass > 3) {
           pr.active = false;
           setPreviewPass(0);
+          setPreviewWord("");
           videoRef.current?.setRateAsync(1.0, true);
           videoRef.current?.pauseAsync();
           videoRef.current?.setPositionAsync(0);
@@ -194,6 +206,7 @@ export default function AnalysisScreen() {
           pr.pass = nextPass as 1 | 2 | 3;
           pr.fired = new Set();
           setPreviewPass(nextPass as 1 | 2 | 3);
+          setPreviewWord("");
           videoRef.current?.setPositionAsync(0).then(async () => {
             if (nextPass === 3) await videoRef.current?.setRateAsync(0.6, true);
             await videoRef.current?.playAsync();
@@ -209,6 +222,7 @@ export default function AnalysisScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     previewRef.current = { active: true, pass: 1, fired: new Set(), transitioning: false };
     setPreviewPass(1);
+    setPreviewWord("");
     await videoRef.current.setRateAsync(1.0, true);
     await videoRef.current.setPositionAsync(0);
     await videoRef.current.playAsync();
@@ -217,6 +231,7 @@ export default function AnalysisScreen() {
   const stopPreview = async () => {
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
     setPreviewPass(0);
+    setPreviewWord("");
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
     await videoRef.current?.setPositionAsync(0);
@@ -225,9 +240,6 @@ export default function AnalysisScreen() {
   // Export is a stub for now: it runs the same in-app preview as the Preview
   // button until real video-file export (server-side compositing) is built.
   const handleExport = startPreview;
-
-  const passLabel =
-    previewPass === 0 ? "" : previewPass < 3 ? `Pass ${previewPass}/3 · Normal` : "Pass 3/3 · Slow Motion";
 
   return (
     <View
@@ -288,7 +300,22 @@ export default function AnalysisScreen() {
               </View>
               {previewPass > 0 && (
                 <View style={styles.passBadge}>
-                  <Text style={styles.passLabel}>{passLabel}</Text>
+                  <Text style={styles.passLabel}>
+                    {previewPass < 3 ? `PASS ${previewPass}/3` : "SLOW MOTION"}
+                  </Text>
+                </View>
+              )}
+              {previewWord !== "" && (
+                <View style={styles.phaseWordWrap} pointerEvents="none">
+                  <Text style={styles.phaseWord}>{previewWord}</Text>
+                </View>
+              )}
+              {analysis && (
+                <View style={[styles.gradeOverlay, { borderColor: analysis.gradeColor + "66" }]}>
+                  <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
+                    {analysis.grade}
+                  </Text>
+                  <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
                 </View>
               )}
             </View>
@@ -474,6 +501,23 @@ export default function AnalysisScreen() {
               </View>
             )}
 
+            <View style={styles.marksSection}>
+              <Text style={styles.sectionLabel}>PREVIEW AUDIO</Text>
+              <View style={styles.audioModeGroup}>
+                {(["tones", "piano", "voice"] as const).map((m) => (
+                  <Pressable
+                    key={m}
+                    style={[styles.audioModeBtn, audioMode === m && styles.audioModeBtnActive]}
+                    onPress={() => { Haptics.selectionAsync(); setAudioMode(m); }}
+                  >
+                    <Text style={[styles.audioModeLabel, audioMode === m && styles.audioModeLabelActive]}>
+                      {m === "tones" ? "Beeps" : m === "piano" ? "Piano" : "Voice"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
             {previewPass === 0 ? (
               <View style={styles.actionRow}>
                 <Pressable
@@ -601,6 +645,65 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   passLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: ORANGE },
+  phaseWordWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 44,
+    alignItems: "center",
+  },
+  phaseWord: {
+    fontSize: 30,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+    letterSpacing: 2,
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  gradeOverlay: {
+    position: "absolute",
+    top: 10,
+    right: 12,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  gradeOverlayGrade: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 1.5,
+  },
+  gradeOverlayRatio: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#CCCCCC",
+    marginTop: 1,
+  },
+  audioModeGroup: {
+    flexDirection: "row",
+    backgroundColor: "#0D0D0D",
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+  },
+  audioModeBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  audioModeBtnActive: { backgroundColor: BLUE },
+  audioModeLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#555555",
+  },
+  audioModeLabelActive: { color: "#FFFFFF" },
   scrubBar: {
     flexDirection: "row",
     alignItems: "center",
