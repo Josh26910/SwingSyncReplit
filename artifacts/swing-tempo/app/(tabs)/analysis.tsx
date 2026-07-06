@@ -47,6 +47,10 @@ interface PreviewState {
   transitioning: boolean;
 }
 
+function toTitleCase(text: string): string {
+  return text.replace(/\w\S*/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
+}
+
 export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
@@ -337,7 +341,7 @@ export default function AnalysisScreen() {
             )}
             {golferName !== "" && (
               <View style={styles.nameCaption}>
-                <Text style={styles.nameCaptionText}>{golferName}</Text>
+                <Text style={styles.nameCaptionText}>{toTitleCase(golferName)}</Text>
               </View>
             )}
           </View>
@@ -347,20 +351,15 @@ export default function AnalysisScreen() {
             </View>
           )}
           {counterPhase !== "hidden" && (
-            <View
-              style={[
-                styles.gradeOverlay,
-                counterPhase === "done" && analysis
-                  ? { borderColor: analysis.gradeColor + "66" }
-                  : styles.gradeOverlayCounting,
-              ]}
-              pointerEvents="none"
-            >
+            <View style={styles.gradeOverlay} pointerEvents="none">
               {counterPhase === "done" && analysis ? (
                 <>
-                  <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
-                    {analysis.grade}
-                  </Text>
+                  <View style={[styles.gradeOverlayPill, { backgroundColor: analysis.gradeColor + "26", borderColor: analysis.gradeColor + "55" }]}>
+                    <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
+                      {analysis.grade}
+                    </Text>
+                  </View>
+                  <Text style={styles.gradeOverlayPercent}>{analysis.accuracy}%</Text>
                   <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
                 </>
               ) : counterPhase === "back" ? (
@@ -735,38 +734,44 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   passBadge: {
-    backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.68)",
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
-  passLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: ORANGE },
+  passLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: ORANGE,
+    letterSpacing: 1,
+  },
   nameCaption: {
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.68)",
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
   nameCaptionText: {
-    fontSize: 14,
-    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
     color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
   watermark: {
     position: "absolute",
     right: 12,
     bottom: 8,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(0,0,0,0.68)",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 6,
     alignItems: "center",
   },
   watermarkIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    marginBottom: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    marginBottom: 3,
   },
   watermarkTitle: {
     fontSize: 10,
@@ -785,13 +790,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.72)",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
     paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingTop: 16,
     paddingBottom: 14,
-    gap: 10,
+    gap: 12,
   },
   overlayScrubBar: {
     flexDirection: "row",
@@ -854,37 +859,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   phaseWord: {
-    fontSize: 30,
+    fontSize: 26,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
-    letterSpacing: 2,
-    textShadowColor: "rgba(0,0,0,0.85)",
+    letterSpacing: 3,
+    textShadowColor: "rgba(0,0,0,0.8)",
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    textShadowRadius: 8,
   },
   gradeOverlay: {
     position: "absolute",
     top: 10,
     right: 12,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 12,
-    borderWidth: 1.5,
+    backgroundColor: "rgba(0,0,0,0.68)",
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     alignItems: "center",
   },
+  gradeOverlayPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
   gradeOverlayGrade: {
-    fontSize: 13,
+    fontSize: 11,
     fontFamily: "Inter_700Bold",
     letterSpacing: 1.5,
+  },
+  gradeOverlayPercent: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
   },
   gradeOverlayRatio: {
     fontSize: 11,
     fontFamily: "Inter_500Medium",
-    color: "#CCCCCC",
-    marginTop: 1,
+    color: "#888888",
+    marginTop: 3,
   },
-  gradeOverlayCounting: { borderColor: "#333333" },
   counterNum: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
