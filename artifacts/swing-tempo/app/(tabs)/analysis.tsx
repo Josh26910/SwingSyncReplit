@@ -1,8 +1,9 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Video, ResizeMode } from "expo-av";
+import type { AVPlaybackStatus } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { Video, ResizeMode } from "expo-av";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -14,26 +15,62 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useTempo } from "@/context/TempoContext";
+import {
+  EMPTY_MARKERS,
+  useSwingLibrary,
+  type Markers,
+  type Swing,
+} from "@/context/SwingLibraryContext";
+import { playImpact, playStart, playTop } from "@/utils/audio";
+
 const FPS = 30;
 const MS_PER_FRAME = 1000 / FPS;
 const PERFECT_RATIO = 3.0;
+const BLUE = "#1A8CFF";
+const RED = "#FF3B30";
+const ORANGE = "#FF9F0A";
 
-interface FrameMarks {
-  a: number | null;
-  b: number | null;
-  c: number | null;
+interface PreviewState {
+  active: boolean;
+  pass: 0 | 1 | 2 | 3;
+  fired: Set<string>;
+  transitioning: boolean;
 }
 
 export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
-  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const { audioMode } = useTempo();
+  const { activeSwing, activeOrigin, addSwing, updateSwing, setActive } = useSwingLibrary();
+
   const [currentMs, setCurrentMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
-  const [marks, setMarks] = useState<FrameMarks>({ a: null, b: null, c: null });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [previewPass, setPreviewPass] = useState<0 | 1 | 2 | 3>(0);
+  const previewRef = useRef<PreviewState>({
+    active: false,
+    pass: 0,
+    fired: new Set(),
+    transitioning: false,
+  });
+
+  const videoUri = activeSwing?.uri ?? null;
+  const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
+  const trimStartMs = activeSwing?.trimStartMs ?? 0;
+  const trimEndMs = activeSwing?.trimEndMs ?? null;
+  const effectiveEndMs = trimEndMs ?? durationMs;
 
   const currentFrame = Math.round(currentMs / MS_PER_FRAME);
+
+  // Reset transient playback state whenever the active swing changes.
+  useEffect(() => {
+    setCurrentMs(0);
+    setDurationMs(0);
+    setIsPlaying(false);
+    setPreviewPass(0);
+    previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
+  }, [activeSwing?.id]);
 
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -50,9 +87,17 @@ export default function AnalysisScreen() {
       quality: 1,
     });
     if (!result.canceled && result.assets[0]) {
-      setVideoUri(result.assets[0].uri);
-      setMarks({ a: null, b: null, c: null });
-      setCurrentMs(0);
+      const origin = activeOrigin ?? "mine";
+      const newSwing: Swing = {
+        id:          Date.now().toString(),
+        uri:         result.assets[0].uri,
+        name:        `Swing ${Date.now()}`,
+        markers:     EMPTY_MARKERS,
+        trimStartMs: 0,
+        trimEndMs:   null,
+      };
+      addSwing(origin, newSwing);
+      setActive(origin, newSwing.id);
     }
   };
 
@@ -69,19 +114,40 @@ export default function AnalysisScreen() {
     setCurrentMs(newMs);
   };
 
-  const markFrame = (mark: "a" | "b" | "c") => {
+  const markFrame = (mark: keyof Markers) => {
+    if (!activeSwing) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setMarks((prev) => ({ ...prev, [mark]: currentMs }));
+    updateSwing(activeOrigin, activeSwing.id, { markers: { ...marks, [mark]: currentMs } });
   };
 
-  const clearMark = (mark: "a" | "b" | "c") => {
-    setMarks((prev) => ({ ...prev, [mark]: null }));
+  const clearMark = (mark: keyof Markers) => {
+    if (!activeSwing) return;
+    updateSwing(activeOrigin, activeSwing.id, { markers: { ...marks, [mark]: null } });
+  };
+
+  const setTrimStart = () => {
+    if (!activeSwing) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newStart = Math.max(0, Math.min(currentMs, effectiveEndMs - MS_PER_FRAME));
+    updateSwing(activeOrigin, activeSwing.id, { trimStartMs: newStart });
+  };
+
+  const setTrimEnd = () => {
+    if (!activeSwing) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newEnd = Math.min(durationMs, Math.max(currentMs, trimStartMs + MS_PER_FRAME));
+    updateSwing(activeOrigin, activeSwing.id, { trimEndMs: newEnd });
+  };
+
+  const resetTrim = () => {
+    if (!activeSwing) return;
+    updateSwing(activeOrigin, activeSwing.id, { trimStartMs: 0, trimEndMs: null });
   };
 
   const getAnalysis = () => {
-    if (marks.a === null || marks.b === null || marks.c === null) return null;
-    const backswingMs = marks.b - marks.a;
-    const downswingMs = marks.c - marks.b;
+    if (marks.takeaway === null || marks.top === null || marks.impact === null) return null;
+    const backswingMs = marks.top - marks.takeaway;
+    const downswingMs = marks.impact - marks.top;
     if (downswingMs <= 0 || backswingMs <= 0) return null;
     const ratio = backswingMs / downswingMs;
     const accuracy = Math.max(0, 100 - Math.abs(ratio - PERFECT_RATIO) * 33);
@@ -112,6 +178,78 @@ export default function AnalysisScreen() {
   };
 
   const analysis = getAnalysis();
+
+  const handleStatus = (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    const pos = status.positionMillis ?? 0;
+    setCurrentMs(pos);
+    if (status.durationMillis) setDurationMs(status.durationMillis);
+    setIsPlaying(status.isPlaying);
+
+    const pr = previewRef.current;
+    const end = trimEndMs ?? status.durationMillis ?? durationMs;
+
+    if (pr.active) {
+      if (marks.takeaway !== null && !pr.fired.has("takeaway") && pos >= marks.takeaway) {
+        pr.fired.add("takeaway");
+        playStart(audioMode);
+      }
+      if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
+        pr.fired.add("top");
+        playTop(audioMode);
+      }
+      if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
+        pr.fired.add("impact");
+        playImpact(audioMode);
+      }
+
+      if (!pr.transitioning && end > 0 && pos >= end) {
+        pr.transitioning = true;
+        const nextPass = pr.pass + 1;
+        if (nextPass > 3) {
+          pr.active = false;
+          setPreviewPass(0);
+          videoRef.current?.setRateAsync(1.0, true);
+          videoRef.current?.pauseAsync();
+        } else {
+          pr.pass = nextPass as 1 | 2 | 3;
+          pr.fired = new Set();
+          setPreviewPass(nextPass as 1 | 2 | 3);
+          videoRef.current?.setPositionAsync(trimStartMs).then(async () => {
+            if (nextPass === 3) await videoRef.current?.setRateAsync(0.6, true);
+            await videoRef.current?.playAsync();
+            pr.transitioning = false;
+          });
+        }
+      }
+    } else if (trimEndMs !== null && pos >= trimEndMs) {
+      videoRef.current?.pauseAsync();
+    }
+  };
+
+  const startPreview = async () => {
+    if (!videoRef.current || !analysis) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    previewRef.current = { active: true, pass: 1, fired: new Set(), transitioning: false };
+    setPreviewPass(1);
+    await videoRef.current.setRateAsync(1.0, true);
+    await videoRef.current.setPositionAsync(trimStartMs);
+    await videoRef.current.playAsync();
+  };
+
+  const stopPreview = async () => {
+    previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
+    setPreviewPass(0);
+    await videoRef.current?.setRateAsync(1.0, true);
+    await videoRef.current?.pauseAsync();
+  };
+
+  // Export is a stub for now: it runs the same in-app preview as the Preview
+  // button until real video-file export (server-side compositing) is built.
+  const handleExport = startPreview;
+
+  const passLabel =
+    previewPass === 0 ? "" : previewPass < 3 ? `Pass ${previewPass}/3 · Normal` : "Pass 3/3 · Slow Motion";
 
   return (
     <View
@@ -159,13 +297,7 @@ export default function AnalysisScreen() {
                 style={styles.video}
                 resizeMode={ResizeMode.CONTAIN}
                 isLooping={false}
-                onPlaybackStatusUpdate={(status) => {
-                  if (status.isLoaded) {
-                    setCurrentMs(status.positionMillis ?? 0);
-                    setDurationMs(status.durationMillis ?? 0);
-                    setIsPlaying(status.isPlaying);
-                  }
-                }}
+                onPlaybackStatusUpdate={handleStatus}
               />
               <View style={styles.frameOverlay}>
                 <Text style={styles.frameCounter}>
@@ -175,6 +307,11 @@ export default function AnalysisScreen() {
                   {(currentMs / 1000).toFixed(3)}s
                 </Text>
               </View>
+              {previewPass > 0 && (
+                <View style={styles.passBadge}>
+                  <Text style={styles.passLabel}>{passLabel}</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.scrubBar}>
@@ -227,12 +364,12 @@ export default function AnalysisScreen() {
             <View style={styles.marksSection}>
               <Text style={styles.sectionLabel}>MARK POSITIONS</Text>
               <View style={styles.marksRow}>
-                {(["a", "b", "c"] as const).map((mark) => {
-                  const labels = { a: "TAKEAWAY", b: "TOP", c: "IMPACT" };
+                {(["takeaway", "top", "impact"] as const).map((mark) => {
+                  const labels = { takeaway: "TAKEAWAY", top: "TOP", impact: "IMPACT" };
                   const colors = {
-                    a: "#1A8CFF",
-                    b: "#FF9F0A",
-                    c: "#FF3B30",
+                    takeaway: "#1A8CFF",
+                    top: "#FF9F0A",
+                    impact: "#FF3B30",
                   };
                   const val = marks[mark];
                   return (
@@ -246,7 +383,7 @@ export default function AnalysisScreen() {
                         <Text
                           style={[styles.markLetter, { color: colors[mark] }]}
                         >
-                          {mark.toUpperCase()}
+                          {mark.charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <Text style={styles.markLabel}>{labels[mark]}</Text>
@@ -281,6 +418,39 @@ export default function AnalysisScreen() {
                   );
                 })}
               </View>
+            </View>
+
+            <View style={styles.marksSection}>
+              <View style={styles.trimHeaderRow}>
+                <Text style={styles.sectionLabel}>TRIM SWING</Text>
+                {(trimStartMs > 0 || trimEndMs !== null) && (
+                  <Pressable onPress={resetTrim} style={styles.trimResetBtn}>
+                    <Feather name="rotate-ccw" size={12} color="#444" />
+                    <Text style={styles.trimResetText}>Reset</Text>
+                  </Pressable>
+                )}
+              </View>
+              <View style={styles.marksRow}>
+                <View style={styles.markCard}>
+                  <Text style={styles.markLabel}>START</Text>
+                  <Text style={styles.markValue}>{Math.round(trimStartMs / MS_PER_FRAME)}f</Text>
+                  <Pressable style={[styles.setMarkBtn, { borderColor: BLUE }]} onPress={setTrimStart}>
+                    <Text style={[styles.setMarkLabel, { color: BLUE }]}>SET HERE</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.markCard}>
+                  <Text style={styles.markLabel}>END</Text>
+                  <Text style={styles.markValue}>
+                    {trimEndMs !== null ? `${Math.round(trimEndMs / MS_PER_FRAME)}f` : "END"}
+                  </Text>
+                  <Pressable style={[styles.setMarkBtn, { borderColor: BLUE }]} onPress={setTrimEnd}>
+                    <Text style={[styles.setMarkLabel, { color: BLUE }]}>SET HERE</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={styles.hintText}>
+                Scrub to the desired start/end frame, then tap "Set Here" to trim dead space around the swing
+              </Text>
             </View>
 
             {analysis ? (
@@ -358,12 +528,37 @@ export default function AnalysisScreen() {
               </View>
             )}
 
+            {previewPass === 0 ? (
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.actionBtn, !analysis && styles.actionBtnDim]}
+                  onPress={analysis ? startPreview : undefined}
+                >
+                  <Feather name="play-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.actionBtnLabel}>Preview</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.actionBtn, styles.actionBtnSecondary, !analysis && styles.actionBtnDim]}
+                  onPress={analysis ? handleExport : undefined}
+                >
+                  <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
+                  <Text style={[styles.actionBtnLabel, { color: BLUE }]}>Export</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={[styles.actionBtn, styles.actionBtnStop]} onPress={stopPreview}>
+                <Feather name="square" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.actionBtnLabel}>Stop Preview</Text>
+              </Pressable>
+            )}
+
+            {!analysis && (
+              <Text style={styles.allSetHint}>Set all 3 markers to enable Preview &amp; Export</Text>
+            )}
+
             <Pressable
               style={styles.reImportBtn}
-              onPress={() => {
-                setVideoUri(null);
-                setMarks({ a: null, b: null, c: null });
-              }}
+              onPress={pickVideo}
             >
               <Feather name="refresh-cw" size={14} color="#444444" />
               <Text style={styles.reImportText}>Import Different Video</Text>
@@ -450,6 +645,16 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 4,
   },
+  passBadge: {
+    position: "absolute",
+    bottom: 8,
+    left: 12,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  passLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: ORANGE },
   scrubBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -495,6 +700,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 10,
     fontFamily: "Inter_600SemiBold",
+  },
+  trimHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  trimResetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 10,
+  },
+  trimResetText: {
+    fontSize: 11,
+    color: "#444444",
+    fontFamily: "Inter_500Medium",
   },
   marksRow: { flexDirection: "row", gap: 8 },
   markCard: {
@@ -580,7 +801,6 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: "#111111",
-    alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#222222",
@@ -635,6 +855,27 @@ const styles = StyleSheet.create({
     color: "#444444",
     lineHeight: 18,
     fontFamily: "Inter_400Regular",
+  },
+  actionRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: BLUE,
+    borderRadius: 16,
+    paddingVertical: 16,
+  },
+  actionBtnDim: { opacity: 0.4 },
+  actionBtnSecondary: { backgroundColor: BLUE + "18", borderWidth: 1, borderColor: BLUE + "44" },
+  actionBtnStop: { backgroundColor: RED + "22", borderWidth: 1, borderColor: RED + "44", marginBottom: 16 },
+  actionBtnLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  allSetHint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 16,
   },
   reImportBtn: {
     flexDirection: "row",

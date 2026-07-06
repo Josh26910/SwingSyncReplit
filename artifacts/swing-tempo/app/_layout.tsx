@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { SwingLibraryProvider } from "@/context/SwingLibraryContext";
 import { TempoProvider } from "@/context/TempoContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -52,7 +53,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <TempoProvider>
-                <RootLayoutNav />
+                <SwingLibraryProvider>
+                  <RootLayoutNav />
+                </SwingLibraryProvider>
               </TempoProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
