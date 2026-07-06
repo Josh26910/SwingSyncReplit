@@ -6,11 +6,13 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -66,6 +68,12 @@ export default function AnalysisScreen() {
 
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
+  const golferName = activeSwing?.golferName ?? "";
+
+  const setGolferName = (text: string) => {
+    if (!activeSwing) return;
+    updateSwing(activeOrigin, activeSwing.id, { golferName: text });
+  };
 
   const currentFrame = Math.round(currentMs / MS_PER_FRAME);
 
@@ -288,13 +296,20 @@ export default function AnalysisScreen() {
               <Feather name="x" size={22} color="#FFF" />
             </Pressable>
           )}
-          {previewPass > 0 && (
-            <View style={styles.passBadge}>
-              <Text style={styles.passLabel}>
-                {previewPass < 3 ? `PASS ${previewPass}/3` : "SLOW MOTION"}
-              </Text>
-            </View>
-          )}
+          <View style={styles.bottomLeftStack} pointerEvents="none">
+            {previewPass > 0 && (
+              <View style={styles.passBadge}>
+                <Text style={styles.passLabel}>
+                  {previewPass < 3 ? `PASS ${previewPass}/3` : "SLOW MOTION"}
+                </Text>
+              </View>
+            )}
+            {golferName !== "" && (
+              <View style={styles.nameCaption}>
+                <Text style={styles.nameCaptionText}>{golferName}</Text>
+              </View>
+            )}
+          </View>
           {previewWord !== "" && (
             <View style={styles.phaseWordWrap} pointerEvents="none">
               <Text style={styles.phaseWord}>{previewWord}</Text>
@@ -308,6 +323,11 @@ export default function AnalysisScreen() {
               <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
             </View>
           )}
+          <View style={styles.watermark} pointerEvents="none">
+            <Image source={require("../../assets/images/icon.png")} style={styles.watermarkIcon} />
+            <Text style={styles.watermarkTitle}>SwingTempo</Text>
+            <Text style={styles.watermarkCta}>Download Free</Text>
+          </View>
         </View>
       ) : null}
 
@@ -381,6 +401,17 @@ export default function AnalysisScreen() {
                 <Text style={styles.scrubLabel}>10</Text>
                 <Feather name="chevrons-right" size={20} color="#888" />
               </Pressable>
+            </View>
+
+            <View style={styles.marksSection}>
+              <Text style={styles.sectionLabel}>GOLFER NAME (OPTIONAL)</Text>
+              <TextInput
+                style={styles.nameInput}
+                value={golferName}
+                onChangeText={setGolferName}
+                placeholder="e.g. Jordan Spieth"
+                placeholderTextColor="#444444"
+              />
             </View>
 
             <View style={styles.marksSection}>
@@ -681,16 +712,59 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 4,
   },
-  passBadge: {
+  bottomLeftStack: {
     position: "absolute",
     bottom: 8,
     left: 12,
+    gap: 6,
+    alignItems: "flex-start",
+  },
+  passBadge: {
     backgroundColor: "rgba(0,0,0,0.75)",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   passLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: ORANGE },
+  nameCaption: {
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  nameCaptionText: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
+  watermark: {
+    position: "absolute",
+    right: 12,
+    bottom: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  watermarkIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    marginBottom: 2,
+  },
+  watermarkTitle: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  watermarkCta: {
+    fontSize: 9,
+    fontFamily: "Inter_500Medium",
+    color: BLUE,
+    marginTop: 1,
+  },
   phaseWordWrap: {
     position: "absolute",
     left: 0,
@@ -728,6 +802,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: "#CCCCCC",
     marginTop: 1,
+  },
+  nameInput: {
+    backgroundColor: "#0D0D0D",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "#FFFFFF",
   },
   audioModeGroup: {
     flexDirection: "row",
