@@ -26,7 +26,8 @@ import { playImpact, playStart, playTop } from "@/utils/audio";
 
 const FPS = 30;
 const MS_PER_FRAME = 1000 / FPS;
-const PERFECT_RATIO = 3.0;
+const LONG_GAME_RATIO = 3.0;
+const SHORT_GAME_RATIO = 2.0;
 const BLUE = "#1A8CFF";
 const RED = "#FF3B30";
 const ORANGE = "#FF9F0A";
@@ -47,8 +48,9 @@ interface PreviewState {
 export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
-  const { audioMode, setAudioMode } = useTempo();
+  const { audioMode, setAudioMode, gameMode, setGameMode } = useTempo();
   const { activeSwing, activeOrigin, addSwing, updateSwing, setActive } = useSwingLibrary();
+  const perfectRatio = gameMode === "short" ? SHORT_GAME_RATIO : LONG_GAME_RATIO;
 
   const [currentMs, setCurrentMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
@@ -136,7 +138,7 @@ export default function AnalysisScreen() {
     const downswingMs = marks.impact - marks.top;
     if (downswingMs <= 0 || backswingMs <= 0) return null;
     const ratio = backswingMs / downswingMs;
-    const accuracy = Math.max(0, 100 - Math.abs(ratio - PERFECT_RATIO) * 33);
+    const accuracy = Math.max(0, 100 - Math.abs(ratio - perfectRatio) * 33);
     return {
       backswingMs,
       downswingMs,
@@ -241,6 +243,8 @@ export default function AnalysisScreen() {
   // button until real video-file export (server-side compositing) is built.
   const handleExport = startPreview;
 
+  const isFullscreen = previewPass > 0;
+
   return (
     <View
       style={[
@@ -251,11 +255,63 @@ export default function AnalysisScreen() {
         },
       ]}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>ANALYSIS</Text>
-        <Text style={styles.subtitle}>Video Frame Counter</Text>
-      </View>
+      {!isFullscreen && (
+        <View style={styles.header}>
+          <Text style={styles.title}>ANALYSIS</Text>
+          <Text style={styles.subtitle}>Video Frame Counter</Text>
+        </View>
+      )}
 
+      {videoUri ? (
+        <View style={[styles.videoWrapper, isFullscreen && styles.videoWrapperFullscreen]}>
+          <Video
+            ref={videoRef}
+            source={{ uri: videoUri }}
+            style={[styles.video, isFullscreen && styles.videoFullscreen]}
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping={false}
+            progressUpdateIntervalMillis={MS_PER_FRAME}
+            onPlaybackStatusUpdate={handleStatus}
+          />
+          {!isFullscreen && (
+            <View style={styles.frameOverlay}>
+              <Text style={styles.frameCounter}>
+                Frame {currentFrame.toString().padStart(4, "0")}
+              </Text>
+              <Text style={styles.timecodeText}>
+                {(currentMs / 1000).toFixed(3)}s
+              </Text>
+            </View>
+          )}
+          {isFullscreen && (
+            <Pressable style={styles.fullscreenCloseBtn} onPress={stopPreview}>
+              <Feather name="x" size={22} color="#FFF" />
+            </Pressable>
+          )}
+          {previewPass > 0 && (
+            <View style={styles.passBadge}>
+              <Text style={styles.passLabel}>
+                {previewPass < 3 ? `PASS ${previewPass}/3` : "SLOW MOTION"}
+              </Text>
+            </View>
+          )}
+          {previewWord !== "" && (
+            <View style={styles.phaseWordWrap} pointerEvents="none">
+              <Text style={styles.phaseWord}>{previewWord}</Text>
+            </View>
+          )}
+          {analysis && (
+            <View style={[styles.gradeOverlay, { borderColor: analysis.gradeColor + "66" }]}>
+              <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
+                {analysis.grade}
+              </Text>
+              <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      {!isFullscreen && (
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -280,46 +336,6 @@ export default function AnalysisScreen() {
           </Pressable>
         ) : (
           <>
-            <View style={styles.videoWrapper}>
-              <Video
-                ref={videoRef}
-                source={{ uri: videoUri }}
-                style={styles.video}
-                resizeMode={ResizeMode.CONTAIN}
-                isLooping={false}
-                progressUpdateIntervalMillis={MS_PER_FRAME}
-                onPlaybackStatusUpdate={handleStatus}
-              />
-              <View style={styles.frameOverlay}>
-                <Text style={styles.frameCounter}>
-                  Frame {currentFrame.toString().padStart(4, "0")}
-                </Text>
-                <Text style={styles.timecodeText}>
-                  {(currentMs / 1000).toFixed(3)}s
-                </Text>
-              </View>
-              {previewPass > 0 && (
-                <View style={styles.passBadge}>
-                  <Text style={styles.passLabel}>
-                    {previewPass < 3 ? `PASS ${previewPass}/3` : "SLOW MOTION"}
-                  </Text>
-                </View>
-              )}
-              {previewWord !== "" && (
-                <View style={styles.phaseWordWrap} pointerEvents="none">
-                  <Text style={styles.phaseWord}>{previewWord}</Text>
-                </View>
-              )}
-              {analysis && (
-                <View style={[styles.gradeOverlay, { borderColor: analysis.gradeColor + "66" }]}>
-                  <Text style={[styles.gradeOverlayGrade, { color: analysis.gradeColor }]}>
-                    {analysis.grade}
-                  </Text>
-                  <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
-                </View>
-              )}
-            </View>
-
             <View style={styles.scrubBar}>
               <Pressable
                 style={styles.scrubBtn}
@@ -365,6 +381,23 @@ export default function AnalysisScreen() {
                 <Text style={styles.scrubLabel}>10</Text>
                 <Feather name="chevrons-right" size={20} color="#888" />
               </Pressable>
+            </View>
+
+            <View style={styles.marksSection}>
+              <Text style={styles.sectionLabel}>SWING TYPE</Text>
+              <View style={styles.audioModeGroup}>
+                {(["long", "short"] as const).map((m) => (
+                  <Pressable
+                    key={m}
+                    style={[styles.audioModeBtn, gameMode === m && styles.audioModeBtnActive]}
+                    onPress={() => { Haptics.selectionAsync(); setGameMode(m); }}
+                  >
+                    <Text style={[styles.audioModeLabel, gameMode === m && styles.audioModeLabelActive]}>
+                      {m === "long" ? "Long Game (3:1)" : "Short Game (2:1)"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             <View style={styles.marksSection}>
@@ -481,7 +514,7 @@ export default function AnalysisScreen() {
                     <View style={styles.statItem}>
                       <Text style={styles.statLabel}>GOLD STANDARD</Text>
                       <Text style={[styles.statValue, { color: "#FFD700" }]}>
-                        3.00:1
+                        {perfectRatio.toFixed(2)}:1
                       </Text>
                     </View>
                   </View>
@@ -518,29 +551,22 @@ export default function AnalysisScreen() {
               </View>
             </View>
 
-            {previewPass === 0 ? (
-              <View style={styles.actionRow}>
-                <Pressable
-                  style={[styles.actionBtn, !analysis && styles.actionBtnDim]}
-                  onPress={analysis ? startPreview : undefined}
-                >
-                  <Feather name="play-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.actionBtnLabel}>Preview</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.actionBtn, styles.actionBtnSecondary, !analysis && styles.actionBtnDim]}
-                  onPress={analysis ? handleExport : undefined}
-                >
-                  <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
-                  <Text style={[styles.actionBtnLabel, { color: BLUE }]}>Export</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable style={[styles.actionBtn, styles.actionBtnStop]} onPress={stopPreview}>
-                <Feather name="square" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                <Text style={styles.actionBtnLabel}>Stop Preview</Text>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.actionBtn, !analysis && styles.actionBtnDim]}
+                onPress={analysis ? startPreview : undefined}
+              >
+                <Feather name="play-circle" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.actionBtnLabel}>Preview</Text>
               </Pressable>
-            )}
+              <Pressable
+                style={[styles.actionBtn, styles.actionBtnSecondary, !analysis && styles.actionBtnDim]}
+                onPress={analysis ? handleExport : undefined}
+              >
+                <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
+                <Text style={[styles.actionBtnLabel, { color: BLUE }]}>Export</Text>
+              </Pressable>
+            </View>
 
             {!analysis && (
               <Text style={styles.allSetHint}>Set all 3 markers to enable Preview &amp; Export</Text>
@@ -556,6 +582,7 @@ export default function AnalysisScreen() {
           </>
         )}
       </ScrollView>
+      )}
     </View>
   );
 }
@@ -604,9 +631,28 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#0D0D0D",
     marginBottom: 12,
+    marginHorizontal: 20,
     position: "relative",
   },
+  videoWrapperFullscreen: {
+    flex: 1,
+    borderRadius: 0,
+    marginBottom: 0,
+    marginHorizontal: 0,
+  },
   video: { width: "100%", height: 220 },
+  videoFullscreen: { height: "100%" },
+  fullscreenCloseBtn: {
+    position: "absolute",
+    top: 10,
+    left: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   frameOverlay: {
     position: "absolute",
     top: 10,
