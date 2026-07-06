@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/context/AuthContext";
+
 interface SettingItem {
   id: string;
   label: string;
@@ -67,7 +69,8 @@ const SETTINGS: SettingItem[] = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, signUp, signIn, signOut } = useAuth();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -80,9 +83,18 @@ export default function ProfileScreen() {
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setIsLoading(false);
-    setIsLoggedIn(true);
+    try {
+      if (mode === "signup") await signUp(email.trim(), password);
+      else await signIn(email.trim(), password);
+      setPassword("");
+    } catch (err) {
+      Alert.alert(
+        mode === "signup" ? "Couldn't Create Account" : "Couldn't Sign In",
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSettingPress = (item: SettingItem) => {
@@ -93,7 +105,7 @@ export default function ProfileScreen() {
         {
           text: "Sign Out",
           style: "destructive",
-          onPress: () => setIsLoggedIn(false),
+          onPress: () => signOut(),
         },
       ]);
     }
@@ -131,11 +143,11 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>PROFILE</Text>
           <Text style={styles.subtitle}>
-            {isLoggedIn ? "SwingTempo Pro" : "Sign in to sync your data"}
+            {user ? "SwingTempo Pro" : "Sign in to sync your data"}
           </Text>
         </View>
 
-        {isLoggedIn ? (
+        {user ? (
           <>
             <View style={styles.avatarSection}>
               <View style={styles.avatarRing}>
@@ -143,7 +155,7 @@ export default function ProfileScreen() {
                   <Feather name="user" size={36} color="#1A8CFF" />
                 </View>
               </View>
-              <Text style={styles.emailDisplay}>{email || "Pro Member"}</Text>
+              <Text style={styles.emailDisplay}>{user.name || user.email}</Text>
               <View style={styles.badgeRow}>
                 <View style={styles.badge}>
                   <MaterialCommunityIcons
@@ -215,7 +227,9 @@ export default function ProfileScreen() {
               <MaterialCommunityIcons name="golf" size={44} color="#1A8CFF" />
               <Text style={styles.authTitle}>SwingTempo</Text>
               <Text style={styles.authSubtitle}>
-                Sign in to save your sessions and track improvement
+                {mode === "signup"
+                  ? "Create a free account to save your sessions and track improvement"
+                  : "Sign in to save your sessions and track improvement"}
               </Text>
             </View>
 
@@ -277,13 +291,17 @@ export default function ProfileScreen() {
                 disabled={isLoading}
               >
                 <Text style={styles.signInLabel}>
-                  {isLoading ? "Signing In..." : "Sign In"}
+                  {isLoading
+                    ? mode === "signup" ? "Creating Account..." : "Signing In..."
+                    : mode === "signup" ? "Create Account" : "Sign In"}
                 </Text>
               </Pressable>
 
-              <Pressable style={styles.forgotBtn}>
-                <Text style={styles.forgotLabel}>Forgot Password?</Text>
-              </Pressable>
+              {mode === "signin" && (
+                <Pressable style={styles.forgotBtn}>
+                  <Text style={styles.forgotLabel}>Forgot Password?</Text>
+                </Pressable>
+              )}
             </View>
 
             <View style={styles.dividerRow}>
@@ -294,11 +312,14 @@ export default function ProfileScreen() {
 
             <Pressable
               style={styles.createAccountBtn}
-              onPress={() =>
-                Alert.alert("Create Account", "Account creation coming soon!")
-              }
+              onPress={() => {
+                Haptics.selectionAsync();
+                setMode((m) => (m === "signup" ? "signin" : "signup"));
+              }}
             >
-              <Text style={styles.createAccountLabel}>Create Free Account</Text>
+              <Text style={styles.createAccountLabel}>
+                {mode === "signup" ? "Already have an account? Sign In" : "Create Free Account"}
+              </Text>
             </Pressable>
           </View>
         )}
