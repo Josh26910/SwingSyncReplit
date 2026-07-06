@@ -59,6 +59,7 @@ export default function AnalysisScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewPass, setPreviewPass] = useState<0 | 1 | 2 | 3>(0);
   const [previewWord, setPreviewWord] = useState("");
+  const [marksConfirmed, setMarksConfirmed] = useState(false);
   const previewRef = useRef<PreviewState>({
     active: false,
     pass: 0,
@@ -84,6 +85,7 @@ export default function AnalysisScreen() {
     setIsPlaying(false);
     setPreviewPass(0);
     setPreviewWord("");
+    setMarksConfirmed(false);
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
   }, [activeSwing?.id]);
 
@@ -279,7 +281,8 @@ export default function AnalysisScreen() {
   // button until real video-file export (server-side compositing) is built.
   const handleExport = startPreview;
 
-  const isFullscreen = previewPass > 0;
+  const isMarking = !!videoUri && !marksConfirmed && previewPass === 0;
+  const isFullscreen = previewPass > 0 || isMarking;
 
   return (
     <View
@@ -309,7 +312,7 @@ export default function AnalysisScreen() {
             progressUpdateIntervalMillis={MS_PER_FRAME}
             onPlaybackStatusUpdate={handleStatus}
           />
-          {!isFullscreen && (
+          {previewPass === 0 && (
             <View style={styles.frameOverlay}>
               <Text style={styles.frameCounter}>
                 Frame {currentFrame.toString().padStart(4, "0")}
@@ -319,7 +322,7 @@ export default function AnalysisScreen() {
               </Text>
             </View>
           )}
-          {isFullscreen && (
+          {previewPass > 0 && (
             <Pressable style={styles.fullscreenCloseBtn} onPress={stopPreview}>
               <Feather name="x" size={22} color="#FFF" />
             </Pressable>
@@ -376,6 +379,68 @@ export default function AnalysisScreen() {
             <Text style={styles.watermarkTitle}>SwingTempo</Text>
             <Text style={styles.watermarkCta}>Download Free</Text>
           </View>
+
+          {isMarking && (
+            <View style={styles.markingOverlay}>
+              <View style={styles.overlayScrubBar}>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(-10)}>
+                  <Feather name="chevrons-left" size={18} color="#CCC" />
+                </Pressable>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(-1)}>
+                  <Feather name="chevron-left" size={18} color="#FFF" />
+                </Pressable>
+                <Pressable
+                  style={styles.overlayPlayBtn}
+                  onPress={async () => {
+                    if (isPlaying) await videoRef.current?.pauseAsync();
+                    else await videoRef.current?.playAsync();
+                  }}
+                >
+                  <Feather name={isPlaying ? "pause" : "play"} size={20} color="#FFF" />
+                </Pressable>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(1)}>
+                  <Feather name="chevron-right" size={18} color="#FFF" />
+                </Pressable>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(10)}>
+                  <Feather name="chevrons-right" size={18} color="#CCC" />
+                </Pressable>
+              </View>
+
+              <View style={styles.overlayMarkRow}>
+                {(["takeaway", "top", "impact"] as const).map((mark) => {
+                  const labels = { takeaway: "TAKEAWAY", top: "TOP", impact: "IMPACT" };
+                  const colors = { takeaway: "#1A8CFF", top: "#FF9F0A", impact: "#FF3B30" };
+                  const val = marks[mark];
+                  return (
+                    <Pressable
+                      key={mark}
+                      style={[
+                        styles.overlayMarkBtn,
+                        { borderColor: val !== null ? colors[mark] : "#333333" },
+                      ]}
+                      onPress={() => (val !== null ? clearMark(mark) : markFrame(mark))}
+                    >
+                      <Text style={[styles.overlayMarkLabel, { color: val !== null ? colors[mark] : "#999" }]}>
+                        {labels[mark]}
+                      </Text>
+                      <Text style={styles.overlayMarkValue}>
+                        {val !== null ? `${Math.round(val / MS_PER_FRAME)}f` : "SET"}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Pressable
+                style={[styles.doneBtn, !analysis && styles.actionBtnDim]}
+                onPress={analysis ? () => setMarksConfirmed(true) : undefined}
+              >
+                <Text style={styles.doneBtnLabel}>
+                  {analysis ? "Done" : "Set all 3 markers to continue"}
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       ) : null}
 
@@ -404,52 +469,13 @@ export default function AnalysisScreen() {
           </Pressable>
         ) : (
           <>
-            <View style={styles.scrubBar}>
-              <Pressable
-                style={styles.scrubBtn}
-                onPress={() => seekByFrames(-10)}
-              >
-                <Feather name="chevrons-left" size={20} color="#888" />
-                <Text style={styles.scrubLabel}>10</Text>
-              </Pressable>
-              <Pressable
-                style={styles.scrubBtn}
-                onPress={() => seekByFrames(-1)}
-              >
-                <Feather name="chevron-left" size={20} color="#CCCCCC" />
-                <Text style={styles.scrubLabel}>1</Text>
-              </Pressable>
-              <Pressable
-                style={styles.playPauseBtn}
-                onPress={async () => {
-                  if (isPlaying) {
-                    await videoRef.current?.pauseAsync();
-                  } else {
-                    await videoRef.current?.playAsync();
-                  }
-                }}
-              >
-                <Feather
-                  name={isPlaying ? "pause" : "play"}
-                  size={22}
-                  color="#FFFFFF"
-                />
-              </Pressable>
-              <Pressable
-                style={styles.scrubBtn}
-                onPress={() => seekByFrames(1)}
-              >
-                <Text style={styles.scrubLabel}>1</Text>
-                <Feather name="chevron-right" size={20} color="#CCCCCC" />
-              </Pressable>
-              <Pressable
-                style={styles.scrubBtn}
-                onPress={() => seekByFrames(10)}
-              >
-                <Text style={styles.scrubLabel}>10</Text>
-                <Feather name="chevrons-right" size={20} color="#888" />
-              </Pressable>
-            </View>
+            <Pressable
+              style={styles.editMarkersBtn}
+              onPress={() => setMarksConfirmed(false)}
+            >
+              <Feather name="edit-2" size={13} color={BLUE} />
+              <Text style={styles.editMarkersText}>Edit Markers</Text>
+            </Pressable>
 
             <View style={styles.marksSection}>
               <Text style={styles.sectionLabel}>GOLFER NAME (OPTIONAL)</Text>
@@ -476,65 +502,6 @@ export default function AnalysisScreen() {
                     </Text>
                   </Pressable>
                 ))}
-              </View>
-            </View>
-
-            <View style={styles.marksSection}>
-              <Text style={styles.sectionLabel}>MARK POSITIONS</Text>
-              <View style={styles.marksRow}>
-                {(["takeaway", "top", "impact"] as const).map((mark) => {
-                  const labels = { takeaway: "TAKEAWAY", top: "TOP", impact: "IMPACT" };
-                  const colors = {
-                    takeaway: "#1A8CFF",
-                    top: "#FF9F0A",
-                    impact: "#FF3B30",
-                  };
-                  const val = marks[mark];
-                  return (
-                    <View key={mark} style={styles.markCard}>
-                      <View
-                        style={[
-                          styles.markBadge,
-                          { backgroundColor: colors[mark] + "22" },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.markLetter, { color: colors[mark] }]}
-                        >
-                          {mark.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <Text style={styles.markLabel}>{labels[mark]}</Text>
-                      {val !== null ? (
-                        <View style={styles.markValueRow}>
-                          <Text style={styles.markValue}>
-                            {Math.round(val / MS_PER_FRAME)}f
-                          </Text>
-                          <Pressable onPress={() => clearMark(mark)}>
-                            <Feather name="x" size={12} color="#444" />
-                          </Pressable>
-                        </View>
-                      ) : (
-                        <Pressable
-                          style={[
-                            styles.setMarkBtn,
-                            { borderColor: colors[mark] },
-                          ]}
-                          onPress={() => markFrame(mark)}
-                        >
-                          <Text
-                            style={[
-                              styles.setMarkLabel,
-                              { color: colors[mark] },
-                            ]}
-                          >
-                            SET
-                          </Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  );
-                })}
               </View>
             </View>
 
@@ -719,8 +686,8 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     marginHorizontal: 0,
   },
-  video: { width: "100%", aspectRatio: 9 / 16 },
-  videoFullscreen: { aspectRatio: undefined, height: "100%" },
+  video: { width: "100%", height: 240 },
+  videoFullscreen: { height: "100%" },
   fullscreenCloseBtn: {
     position: "absolute",
     top: 10,
@@ -813,6 +780,72 @@ const styles = StyleSheet.create({
     color: BLUE,
     marginTop: 1,
   },
+  markingOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    gap: 10,
+  },
+  overlayScrubBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  overlayScrubBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overlayPlayBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overlayMarkRow: { flexDirection: "row", gap: 8 },
+  overlayMarkBtn: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  overlayMarkLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.5,
+  },
+  overlayMarkValue: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
+  doneBtn: {
+    backgroundColor: BLUE,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  doneBtnLabel: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: "#FFFFFF",
+  },
   phaseWordWrap: {
     position: "absolute",
     left: 0,
@@ -898,43 +931,6 @@ const styles = StyleSheet.create({
     color: "#555555",
   },
   audioModeLabelActive: { color: "#FFFFFF" },
-  scrubBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginBottom: 20,
-  },
-  scrubBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0D0D0D",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: "#1A1A1A",
-  },
-  scrubLabel: {
-    fontSize: 11,
-    color: "#666666",
-    fontFamily: "Inter_500Medium",
-    fontWeight: "500",
-  },
-  playPauseBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#1A8CFF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1A8CFF",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 6,
-  },
   marksSection: { marginBottom: 20 },
   sectionLabel: {
     fontSize: 10,
@@ -944,58 +940,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontFamily: "Inter_600SemiBold",
   },
-  marksRow: { flexDirection: "row", gap: 8 },
-  markCard: {
-    flex: 1,
-    backgroundColor: "#0D0D0D",
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: "#1A1A1A",
-  },
-  markBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  markLetter: {
-    fontSize: 14,
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-  },
-  markLabel: {
-    fontSize: 8,
-    color: "#444444",
-    letterSpacing: 1,
-    fontFamily: "Inter_600SemiBold",
-    fontWeight: "600",
-  },
-  markValueRow: {
+  editMarkersBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-  },
-  markValue: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontFamily: "Inter_700Bold",
-  },
-  setMarkBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 6,
+    backgroundColor: BLUE + "18",
     borderWidth: 1,
+    borderColor: BLUE + "44",
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginBottom: 16,
   },
-  setMarkLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-    fontFamily: "Inter_700Bold",
+  editMarkersText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: BLUE,
   },
   analysisCard: {
     backgroundColor: "#0D0D0D",
