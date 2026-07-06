@@ -13,6 +13,7 @@ import { Audio } from "expo-av";
 // based one; cacheDirectory/writeAsStringAsync/EncodingType only exist on
 // the legacy subpath.
 import * as FileSystem from "expo-file-system/legacy";
+import * as Speech from "expo-speech";
 import { Platform } from "react-native";
 
 /* ──────────────────────────────────────────────────────────────────
@@ -232,8 +233,6 @@ async function speakWord(word: string) {
     return;
   }
   try {
-    // Static import path (module is installed)
-    const Speech = (await import("expo-speech")).default;
     if (await Speech.isSpeakingAsync()) Speech.stop();
     Speech.speak(word, { rate: 1.1, pitch: 1.0, language: "en-US" });
   } catch { /* ignore */ }
