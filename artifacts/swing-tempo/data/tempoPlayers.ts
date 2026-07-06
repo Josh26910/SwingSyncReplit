@@ -76,6 +76,18 @@ export const TEMPO_PLAYERS: PlayerTempo[] = [
     result: "Won by 3",
   },
 
+  // ── OFF THE TEE (CSV import) ────────────────────────────────────────────────
+  { id: "tiger-woods-tee-2000", name: "Tiger Woods", event: "U.S. Open", year: 2000, club: "Driver", category: "tee", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "john-daly-tee-1991", name: "John Daly", event: "PGA Championship", year: 1991, club: "Driver", category: "tee", ratio: 3.0, duration: 1.2, backswing: 0.9, downswing: 0.3 },
+  { id: "rory-mcilroy-tee-2011", name: "Rory McIlroy", event: "U.S. Open", year: 2011, club: "Driver", category: "tee", ratio: 3.04, duration: 0.93, backswing: 0.7, downswing: 0.23 },
+  { id: "jack-nicklaus-tee-1972", name: "Jack Nicklaus", event: "U.S. Open", year: 1972, club: "Driver", category: "tee", ratio: 3.0, duration: 1.2, backswing: 0.9, downswing: 0.3 },
+  { id: "bryson-dechambeau-tee-2020", name: "Bryson DeChambeau", event: "U.S. Open", year: 2020, club: "Driver", category: "tee", ratio: 3.0, duration: 0.8, backswing: 0.6, downswing: 0.2 },
+  { id: "greg-norman-tee-1993", name: "Greg Norman", event: "The Open Championship", year: 1993, club: "Driver", category: "tee", ratio: 3.04, duration: 0.93, backswing: 0.7, downswing: 0.23 },
+  { id: "bubba-watson-tee-2012", name: "Bubba Watson", event: "Masters Tournament", year: 2012, club: "Driver", category: "tee", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "dustin-johnson-tee-2016", name: "Dustin Johnson", event: "U.S. Open", year: 2016, club: "Driver", category: "tee", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "jon-rahm-tee-2021", name: "Jon Rahm", event: "U.S. Open", year: 2021, club: "Driver", category: "tee", ratio: 2.04, duration: 0.79, backswing: 0.53, downswing: 0.26 },
+  { id: "lee-trevino-tee-1971", name: "Lee Trevino", event: "The Open Championship", year: 1971, club: "Driver", category: "tee", ratio: 3.0, duration: 0.8, backswing: 0.6, downswing: 0.2 },
+
   // ── APPROACH ────────────────────────────────────────────────────────────────
   {
     id: "tiger-approach",
@@ -128,6 +140,18 @@ export const TEMPO_PLAYERS: PlayerTempo[] = [
     downswing: 0.26,
     result: "Won by 1",
   },
+
+  // ── APPROACH (CSV import) ───────────────────────────────────────────────────
+  { id: "tiger-woods-approach-2000", name: "Tiger Woods", event: "The Open Championship", year: 2000, club: "7-Iron", category: "approach", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "ben-hogan-approach-1953", name: "Ben Hogan", event: "U.S. Open", year: 1953, club: "7-Iron", category: "approach", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "johnny-miller-approach-1973", name: "Johnny Miller", event: "U.S. Open", year: 1973, club: "7-Iron", category: "approach", ratio: 3.04, duration: 0.93, backswing: 0.7, downswing: 0.23 },
+  { id: "scottie-scheffler-approach-2024", name: "Scottie Scheffler", event: "Masters Tournament", year: 2024, club: "7-Iron", category: "approach", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "moe-norman-approach-1980", name: "Moe Norman", event: "Canadian PGA Championship", year: 1980, club: "7-Iron", category: "approach", ratio: 3.0, duration: 0.8, backswing: 0.6, downswing: 0.2 },
+  { id: "collin-morikawa-approach-2021", name: "Collin Morikawa", event: "The Open Championship", year: 2021, club: "7-Iron", category: "approach", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "henrik-stenson-approach-2016", name: "Henrik Stenson", event: "The Open Championship", year: 2016, club: "7-Iron", category: "approach", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
+  { id: "vijay-singh-approach-2004", name: "Vijay Singh", event: "PGA Championship", year: 2004, club: "7-Iron", category: "approach", ratio: 3.0, duration: 1.2, backswing: 0.9, downswing: 0.3 },
+  { id: "arnold-palmer-approach-1960", name: "Arnold Palmer", event: "U.S. Open", year: 1960, club: "7-Iron", category: "approach", ratio: 3.04, duration: 0.93, backswing: 0.7, downswing: 0.23 },
+  { id: "brooks-koepka-approach-2019", name: "Brooks Koepka", event: "PGA Championship", year: 2019, club: "7-Iron", category: "approach", ratio: 3.08, duration: 1.06, backswing: 0.8, downswing: 0.26 },
 
   // ── SHORT GAME ──────────────────────────────────────────────────────────────
   {
@@ -183,6 +207,18 @@ export const TEMPO_PLAYERS: PlayerTempo[] = [
     result: "Won by 8",
   },
 
+  // ── SHORT GAME (CSV import) ─────────────────────────────────────────────────
+  { id: "seve-ballesteros-shortgame-1979", name: "Seve Ballesteros", event: "The Open Championship", year: 1979, club: "Wedge", category: "shortgame", ratio: 1.97, duration: 1.1, backswing: 0.73, downswing: 0.37 },
+  { id: "phil-mickelson-shortgame-2004", name: "Phil Mickelson", event: "Masters Tournament", year: 2004, club: "Wedge", category: "shortgame", ratio: 2.0, duration: 1.2, backswing: 0.8, downswing: 0.4 },
+  { id: "tiger-woods-shortgame-2005", name: "Tiger Woods", event: "Masters Tournament", year: 2005, club: "Wedge", category: "shortgame", ratio: 2.0, duration: 0.9, backswing: 0.6, downswing: 0.3 },
+  { id: "jordan-spieth-shortgame-2015", name: "Jordan Spieth", event: "Masters Tournament", year: 2015, club: "Wedge", category: "shortgame", ratio: 2.03, duration: 1.0, backswing: 0.67, downswing: 0.33 },
+  { id: "raymond-floyd-shortgame-1976", name: "Raymond Floyd", event: "Masters Tournament", year: 1976, club: "Wedge", category: "shortgame", ratio: 2.04, duration: 0.79, backswing: 0.53, downswing: 0.26 },
+  { id: "gary-player-shortgame-1978", name: "Gary Player", event: "Masters Tournament", year: 1978, club: "Wedge", category: "shortgame", ratio: 2.04, duration: 0.79, backswing: 0.53, downswing: 0.26 },
+  { id: "luke-donald-shortgame-2011", name: "Luke Donald", event: "BMW PGA Championship", year: 2011, club: "Wedge", category: "shortgame", ratio: 2.03, duration: 1.0, backswing: 0.67, downswing: 0.33 },
+  { id: "chi-chi-rodriguez-shortgame-1967", name: "Chi-Chi Rodriguez", event: "Texas Open", year: 1967, club: "Wedge", category: "shortgame", ratio: 2.04, duration: 0.79, backswing: 0.53, downswing: 0.26 },
+  { id: "paul-runyan-shortgame-1938", name: "Paul Runyan", event: "PGA Championship", year: 1938, club: "Wedge", category: "shortgame", ratio: 2.0, duration: 0.9, backswing: 0.6, downswing: 0.3 },
+  { id: "hideki-matsuyama-shortgame-2024", name: "Hideki Matsuyama", event: "The Genesis Invitational", year: 2024, club: "Wedge", category: "shortgame", ratio: 1.97, duration: 1.1, backswing: 0.73, downswing: 0.37 },
+
   // ── PUTTING ────────────────────────────────────────────────────────────────
   {
     id: "tiger-putt",
@@ -234,6 +270,18 @@ export const TEMPO_PLAYERS: PlayerTempo[] = [
     backswing: 0.71,
     downswing: 0.44,
   },
+
+  // ── PUTTING (CSV import) ────────────────────────────────────────────────────
+  { id: "ben-crenshaw-putting-1995", name: "Ben Crenshaw", event: "Masters Tournament", year: 1995, club: "Putter", category: "putting", ratio: 1.97, duration: 1.1, backswing: 0.73, downswing: 0.37 },
+  { id: "brad-faxon-putting-1995", name: "Brad Faxon", event: "PGA Championship", year: 1995, club: "Putter", category: "putting", ratio: 2.0, duration: 0.9, backswing: 0.6, downswing: 0.3 },
+  { id: "tiger-woods-putting-1997", name: "Tiger Woods", event: "Masters Tournament", year: 1997, club: "Putter", category: "putting", ratio: 2.0, duration: 0.9, backswing: 0.6, downswing: 0.3 },
+  { id: "jack-nicklaus-putting-1986", name: "Jack Nicklaus", event: "Masters Tournament", year: 1986, club: "Putter", category: "putting", ratio: 2.03, duration: 1.0, backswing: 0.67, downswing: 0.33 },
+  { id: "patrick-cantlay-putting-2021", name: "Patrick Cantlay", event: "BMW Championship", year: 2021, club: "Putter", category: "putting", ratio: 2.03, duration: 1.0, backswing: 0.67, downswing: 0.33 },
+  { id: "jordan-spieth-putting-2015", name: "Jordan Spieth", event: "U.S. Open", year: 2015, club: "Putter", category: "putting", ratio: 2.0, duration: 0.9, backswing: 0.6, downswing: 0.3 },
+  { id: "brian-harman-putting-2023", name: "Brian Harman", event: "The Open Championship", year: 2023, club: "Putter", category: "putting", ratio: 2.04, duration: 0.79, backswing: 0.53, downswing: 0.26 },
+  { id: "bobby-locke-putting-1949", name: "Bobby Locke", event: "The Open Championship", year: 1949, club: "Putter", category: "putting", ratio: 1.97, duration: 1.1, backswing: 0.73, downswing: 0.37 },
+  { id: "steve-stricker-putting-2011", name: "Steve Stricker", event: "John Deere Classic", year: 2011, club: "Putter", category: "putting", ratio: 2.0, duration: 0.9, backswing: 0.6, downswing: 0.3 },
+  { id: "dave-stockton-putting-1976", name: "Dave Stockton", event: "PGA Championship", year: 1976, club: "Putter", category: "putting", ratio: 2.04, duration: 0.79, backswing: 0.53, downswing: 0.26 },
 ];
 
 export function getPlayersByCategory(cat: ShotCategory): PlayerTempo[] {
