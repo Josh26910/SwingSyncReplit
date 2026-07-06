@@ -282,12 +282,14 @@ export default function TonesScreen() {
           />
           <Text style={styles.playBtnLabel}>{isPlaying ? "Stop" : "Play"}</Text>
         </Pressable>
-        <Text style={styles.loopHint}>AUTO-LOOP ON  ·  TAP TO START</Text>
 
         {/* Stat boxes */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statBoxLabel}>BACKSWING</Text>
+            <View style={styles.statBoxHeader}>
+              <Text style={styles.statBoxLabel}>BACKSWING</Text>
+              <Text style={styles.loopHint}>AUTO-LOOP</Text>
+            </View>
             <Text style={styles.statBoxValue}>{backswingS}</Text>
           </View>
           <View style={styles.statBox}>
@@ -519,6 +521,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1E1E1E",
   },
+  statBoxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   statBoxLabel: {
     fontSize: 10,
     fontFamily: "Inter_500Medium",
@@ -562,10 +569,10 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   loopHint: {
-    fontSize: 10,
+    fontSize: 8,
     fontFamily: "Inter_500Medium",
     color: "#333333",
-    textAlign: "center",
-    letterSpacing: 1.2,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
 });
