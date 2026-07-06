@@ -887,22 +887,25 @@ const styles = StyleSheet.create({
   gradeOverlayGrade: {
     fontSize: 11,
     fontFamily: "Inter_700Bold",
-    letterSpacing: 1.5,
+    letterSpacing: 2,
   },
   gradeOverlayPercent: {
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
+    letterSpacing: -0.5,
   },
   gradeOverlayRatio: {
     fontSize: 11,
     fontFamily: "Inter_500Medium",
-    color: "#888888",
+    color: "#999999",
+    letterSpacing: 0.5,
     marginTop: 3,
   },
   counterNum: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
+    letterSpacing: -0.5,
   },
   counterSplitRow: {
     flexDirection: "row",
