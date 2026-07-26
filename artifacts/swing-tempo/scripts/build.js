@@ -136,9 +136,15 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
 
   console.log("Starting Metro...");
   console.log(`Setting EXPO_PUBLIC_DOMAIN=${expoPublicDomain}`);
+  // The API server is routed on the same domain under /api (see
+  // artifacts/api-server/.replit-artifact/artifact.toml) — bake that in as
+  // the client's API base URL unless one was already provided explicitly.
+  const expoPublicApiUrl = process.env.EXPO_PUBLIC_API_URL || `https://${expoPublicDomain}`;
+  console.log(`Setting EXPO_PUBLIC_API_URL=${expoPublicApiUrl}`);
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
+    EXPO_PUBLIC_API_URL: expoPublicApiUrl,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
   };
 

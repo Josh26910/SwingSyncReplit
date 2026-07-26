@@ -12,10 +12,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ContributionGrid } from "@/components/ContributionGrid";
 import { useAuth } from "@/context/AuthContext";
 import {
   computeStreak,
-  durationToLevel,
   finalizeSession,
   getSessions,
   recordSessionStart,
@@ -23,59 +23,6 @@ import {
 } from "@/utils/sessions";
 
 const BLUE = "#1A8CFF";
-const CELL_COLORS = [
-  "#1A1A1A",   // 0 — no session
-  "#0A3D6B",   // 1 — light (< 2 min)
-  "#0D5CA6",   // 2 — medium (< 10 min)
-  "#1278E0",   // 3 — strong (< 30 min)
-  "#1A8CFF",   // 4 — max (30 min+)
-];
-
-const DAYS   = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-/** Build a 53-week × 7-day grid ending today */
-function buildGrid(sessions: Session[]) {
-  const byDate: Record<string, number> = {};
-  for (const s of sessions) byDate[s.date] = (byDate[s.date] ?? 0) + s.duration;
-
-  const today    = new Date();
-  const todayDay = today.getDay(); // 0=Sun
-  // grid ends on last Saturday on/after today
-  const endDate  = new Date(today);
-  endDate.setDate(today.getDate() + (6 - todayDay));
-
-  const WEEKS = 26; // ~6 months worth
-  const startDate = new Date(endDate);
-  startDate.setDate(endDate.getDate() - WEEKS * 7 + 1);
-
-  const weeks: { date: string; level: 0|1|2|3|4 }[][] = [];
-  let d = new Date(startDate);
-  for (let w = 0; w < WEEKS; w++) {
-    const week = [];
-    for (let day = 0; day < 7; day++) {
-      const iso = d.toISOString().slice(0, 10);
-      const dur = byDate[iso] ?? 0;
-      const inFuture = d > today;
-      week.push({ date: iso, level: inFuture ? 0 as const : durationToLevel(dur) });
-      d.setDate(d.getDate() + 1);
-    }
-    weeks.push(week);
-  }
-
-  // Month labels: find first week where month changes
-  const monthLabels: { weekIdx: number; label: string }[] = [];
-  let lastMonth = -1;
-  for (let w = 0; w < weeks.length; w++) {
-    const m = new Date(weeks[w][0].date).getMonth();
-    if (m !== lastMonth) {
-      monthLabels.push({ weekIdx: w, label: MONTHS[m] });
-      lastMonth = m;
-    }
-  }
-
-  return { weeks, monthLabels };
-}
 
 function computeTotalThisMonth(sessions: Session[]): number {
   const now   = new Date();
@@ -89,7 +36,6 @@ export default function WelcomeScreen() {
   const insets  = useSafeAreaInsets();
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [grid,     setGrid    ] = useState<ReturnType<typeof buildGrid> | null>(null);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const btnScale  = useRef(new Animated.Value(1)).current;
@@ -99,7 +45,6 @@ export default function WelcomeScreen() {
       await finalizeSession();
       const s = await getSessions();
       setSessions(s);
-      setGrid(buildGrid(s));
       Animated.parallel([
         Animated.timing(fadeAnim,  { toValue: 1, duration: 600, useNativeDriver: true }),
         Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
@@ -121,9 +66,6 @@ export default function WelcomeScreen() {
   const streak       = computeStreak(sessions);
   const totalSeconds = computeTotalThisMonth(sessions);
   const totalMins    = Math.floor(totalSeconds / 60);
-
-  const CELL = 11;
-  const GAP  = 3;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
@@ -164,61 +106,7 @@ export default function WelcomeScreen() {
             </Text>
           </View>
 
-          {grid && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 4 }}
-            >
-              <View>
-                {/* Month labels */}
-                <View style={{ flexDirection: "row", marginBottom: 4 }}>
-                  {grid.weeks.map((_, wi) => {
-                    const label = grid.monthLabels.find((m) => m.weekIdx === wi);
-                    return (
-                      <View key={wi} style={{ width: CELL + GAP }}>
-                        {label && (
-                          <Text style={styles.monthLabel}>{label.label}</Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {/* Day rows */}
-                {[0, 1, 2, 3, 4, 5, 6].map((dayIdx) => (
-                  <View key={dayIdx} style={{ flexDirection: "row", marginBottom: GAP }}>
-                    {grid.weeks.map((week, wi) => (
-                      <View
-                        key={wi}
-                        style={[
-                          styles.cell,
-                          {
-                            width: CELL,
-                            height: CELL,
-                            marginRight: GAP,
-                            backgroundColor: CELL_COLORS[week[dayIdx].level],
-                          },
-                        ]}
-                      />
-                    ))}
-                  </View>
-                ))}
-
-                {/* Legend */}
-                <View style={styles.legend}>
-                  <Text style={styles.legendText}>Less</Text>
-                  {CELL_COLORS.map((c, i) => (
-                    <View
-                      key={i}
-                      style={[styles.legendCell, { backgroundColor: c, width: CELL, height: CELL }]}
-                    />
-                  ))}
-                  <Text style={styles.legendText}>More</Text>
-                </View>
-              </View>
-            </ScrollView>
-          )}
+          <ContributionGrid sessions={sessions} weeks={26} />
         </Animated.View>
 
         {/* ── Ad placeholder ─────────────────────────────────── */}
@@ -326,30 +214,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_500Medium",
     color: "#666666",
-  },
-  monthLabel: {
-    fontSize: 8,
-    fontFamily: "Inter_400Regular",
-    color: "#444444",
-    lineHeight: 12,
-  },
-  cell: {
-    borderRadius: 2,
-  },
-  legend: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 4,
-    marginTop: 8,
-  },
-  legendCell: {
-    borderRadius: 2,
-  },
-  legendText: {
-    fontSize: 9,
-    fontFamily: "Inter_400Regular",
-    color: "#444444",
   },
   adPlaceholder: {
     width: "100%",

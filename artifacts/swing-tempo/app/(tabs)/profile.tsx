@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ContributionGrid } from "@/components/ContributionGrid";
 import { useAuth } from "@/context/AuthContext";
 import {
   computeStreak,
@@ -87,6 +88,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signUp, signIn, signOut } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -117,7 +119,7 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
-      if (mode === "signup") await signUp(email.trim(), password);
+      if (mode === "signup") await signUp(email.trim(), password, name.trim() || undefined);
       else await signIn(email.trim(), password);
       setPassword("");
     } catch (err) {
@@ -198,6 +200,9 @@ export default function ProfileScreen() {
                 <Text style={styles.progressValue}>{practiceStreak}</Text>
                 <Text style={styles.progressStatLabel}>DAY STREAK</Text>
               </View>
+            </View>
+            <View style={styles.progressGridWrap}>
+              <ContributionGrid sessions={sessions} weeks={52} />
             </View>
             <View style={styles.progressFooter}>
               <Feather name="bar-chart-2" size={12} color="#444444" />
@@ -295,6 +300,26 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.formSection}>
+              {mode === "signup" && (
+                <View style={styles.inputWrapper}>
+                  <Feather
+                    name="user"
+                    size={16}
+                    color="#444444"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Name (optional)"
+                    placeholderTextColor="#333333"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    autoComplete="name"
+                  />
+                </View>
+              )}
+
               <View style={styles.inputWrapper}>
                 <Feather
                   name="mail"
@@ -359,7 +384,15 @@ export default function ProfileScreen() {
               </Pressable>
 
               {mode === "signin" && (
-                <Pressable style={styles.forgotBtn}>
+                <Pressable
+                  style={styles.forgotBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      "Not Available Yet",
+                      "Password reset isn't set up yet — check back soon."
+                    )
+                  }
+                >
                   <Text style={styles.forgotLabel}>Forgot Password?</Text>
                 </Pressable>
               )}
@@ -420,6 +453,11 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: "row", alignItems: "center" },
   progressStat: { flex: 1, alignItems: "center", gap: 4 },
   progressDivider: { width: 1, height: 32, backgroundColor: "#1A1A1A" },
+  progressGridWrap: {
+    borderTopWidth: 1,
+    borderTopColor: "#1A1A1A",
+    paddingTop: 12,
+  },
   progressValue: {
     fontSize: 20,
     color: "#1A8CFF",
