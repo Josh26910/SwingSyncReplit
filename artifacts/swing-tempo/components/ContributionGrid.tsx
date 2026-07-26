@@ -5,7 +5,7 @@
  * card so both read the same layout/behavior off one implementation.
  */
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { durationToLevel, type Session } from "@/utils/sessions";
 
@@ -69,6 +69,9 @@ interface ContributionGridProps {
   weeks?: number;
   cellSize?: number;
   gap?: number;
+  /** Called with a day's ISO date (YYYY-MM-DD) when that cell is tapped. */
+  onDayPress?: (date: string) => void;
+  selectedDate?: string | null;
 }
 
 export function ContributionGrid({
@@ -76,6 +79,8 @@ export function ContributionGrid({
   weeks = 26,
   cellSize = 11,
   gap = 3,
+  onDayPress,
+  selectedDate = null,
 }: ContributionGridProps) {
   const grid = React.useMemo(() => buildGrid(sessions, weeks), [sessions, weeks]);
 
@@ -101,20 +106,27 @@ export function ContributionGrid({
         {/* Day rows */}
         {[0, 1, 2, 3, 4, 5, 6].map((dayIdx) => (
           <View key={dayIdx} style={{ flexDirection: "row", marginBottom: gap }}>
-            {grid.weeks.map((week, wi) => (
-              <View
-                key={wi}
-                style={[
-                  styles.cell,
-                  {
-                    width: cellSize,
-                    height: cellSize,
-                    marginRight: gap,
-                    backgroundColor: CELL_COLORS[week[dayIdx].level],
-                  },
-                ]}
-              />
-            ))}
+            {grid.weeks.map((week, wi) => {
+              const day = week[dayIdx];
+              const isSelected = selectedDate === day.date;
+              const Wrapper = onDayPress ? Pressable : View;
+              return (
+                <Wrapper
+                  key={wi}
+                  onPress={onDayPress ? () => onDayPress(day.date) : undefined}
+                  style={[
+                    styles.cell,
+                    {
+                      width: cellSize,
+                      height: cellSize,
+                      marginRight: gap,
+                      backgroundColor: CELL_COLORS[day.level],
+                    },
+                    isSelected && styles.cellSelected,
+                  ]}
+                />
+              );
+            })}
           </View>
         ))}
 
@@ -143,6 +155,10 @@ const styles = StyleSheet.create({
   },
   cell: {
     borderRadius: 2,
+  },
+  cellSelected: {
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
   },
   legend: {
     flexDirection: "row",

@@ -27,6 +27,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)"   options={{ headerShown: false }} />
+      <Stack.Screen name="compare"  options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }

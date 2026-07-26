@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 
+import type { ShotCategory } from "@/data/tempoPlayers";
+
 export interface Markers {
   takeaway: number | null;
   top: number | null;
@@ -15,6 +17,8 @@ export interface Swing {
   markers: Markers;
   /** Optional caption shown over the video, e.g. the golfer's name. */
   golferName?: string;
+  /** Club/shot type this swing was tagged with, for per-club tempo stats. */
+  club?: ShotCategory;
 }
 
 export type SwingOrigin = "mine" | "pro";
@@ -28,6 +32,7 @@ interface SwingLibraryContextValue {
   activeOrigin: SwingOrigin;
   setActive: (origin: SwingOrigin, id: string | null) => void;
   activeSwing: Swing | null;
+  findSwing: (origin: SwingOrigin, id: string) => Swing | null;
 }
 
 const SwingLibraryContext = createContext<SwingLibraryContextValue | null>(null);
@@ -59,6 +64,12 @@ export function SwingLibraryProvider({ children }: { children: React.ReactNode }
   const activeSwing =
     (activeOrigin === "mine" ? swings : proSwings).find((s) => s.id === activeId) ?? null;
 
+  const findSwing = useCallback(
+    (origin: SwingOrigin, id: string): Swing | null =>
+      (origin === "mine" ? swings : proSwings).find((s) => s.id === id) ?? null,
+    [swings, proSwings],
+  );
+
   return (
     <SwingLibraryContext.Provider
       value={{
@@ -70,6 +81,7 @@ export function SwingLibraryProvider({ children }: { children: React.ReactNode }
         activeOrigin,
         setActive,
         activeSwing,
+        findSwing,
       }}
     >
       {children}
