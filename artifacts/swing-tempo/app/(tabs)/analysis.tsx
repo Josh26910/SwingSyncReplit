@@ -25,7 +25,9 @@ import {
   type Markers,
   type Swing,
 } from "@/context/SwingLibraryContext";
-import { playImpact, playStart, playTop } from "@/utils/audio";
+import { playImpact, playStart, playTop, stopAllAudio } from "@/utils/audio";
+import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
+import { incrementSwingsAnalyzed } from "@/utils/sessions";
 
 const FPS = 30;
 const MS_PER_FRAME = 1000 / FPS;
@@ -56,7 +58,10 @@ export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const videoRef = useRef<Video>(null);
-  const { audioMode, setAudioMode, gameMode, setGameMode } = useTempo();
+  const {
+    audioMode, setAudioMode, gameMode, setGameMode,
+    setIsPlaying: setIsTempoPlaying,
+  } = useTempo();
   const { activeSwing, activeOrigin, addSwing, updateSwing, setActive } = useSwingLibrary();
   const perfectRatio = gameMode === "short" ? SHORT_GAME_RATIO : LONG_GAME_RATIO;
 
@@ -67,6 +72,7 @@ export default function AnalysisScreen() {
   const [previewPass, setPreviewPass] = useState<0 | 1 | 2 | 3>(0);
   const [previewWord, setPreviewWord] = useState("");
   const [marksConfirmed, setMarksConfirmed] = useState(false);
+  const [showControls, setShowControls] = useState(false);
   const previewRef = useRef<PreviewState>({
     active: false,
     pass: 0,
@@ -77,6 +83,10 @@ export default function AnalysisScreen() {
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
   const golferName = activeSwing?.golferName ?? "";
+
+  // "Being analyzed" = a swing video is loaded on this screen — counts
+  // toward the Profile tab's daily practice-time tracker.
+  useActiveTimeTracker(!!videoUri);
 
   const setGolferName = (text: string) => {
     if (!activeSwing) return;
@@ -94,6 +104,7 @@ export default function AnalysisScreen() {
     setPreviewPass(0);
     setPreviewWord("");
     setMarksConfirmed(false);
+    setShowControls(false);
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
   }, [activeSwing?.id]);
 
@@ -281,18 +292,32 @@ export default function AnalysisScreen() {
   const startPreview = async () => {
     if (!videoRef.current || !analysis) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Global media handoff: the tempo trainer may still be looping in the
+    // background (its state lives in TempoContext, not this screen) — stop
+    // it and cancel any in-flight voice cue before the video's own audio
+    // (playback + phase tones) starts, so the two streams never overlap.
+    setIsTempoPlaying(false);
+    stopAllAudio();
     previewRef.current = { active: true, pass: 1, fired: new Set(), transitioning: false };
     setPreviewPass(1);
     setPreviewWord("");
+    setShowControls(false);
     await videoRef.current.setRateAsync(1.0, true);
     await videoRef.current.setPositionAsync(0);
     await videoRef.current.playAsync();
+  };
+
+  const togglePreviewPlayback = async () => {
+    Haptics.selectionAsync();
+    if (isPlaying) await videoRef.current?.pauseAsync();
+    else await videoRef.current?.playAsync();
   };
 
   const stopPreview = async () => {
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
     setPreviewPass(0);
     setPreviewWord("");
+    setShowControls(false);
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
     await videoRef.current?.setPositionAsync(0);
@@ -347,6 +372,20 @@ export default function AnalysisScreen() {
                 {(currentMs / 1000).toFixed(3)}s
               </Text>
             </View>
+          )}
+          {previewPass > 0 && (
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={() => setShowControls((v) => !v)}
+            >
+              {showControls && (
+                <View style={styles.centerControlsOverlay} pointerEvents="box-none">
+                  <Pressable style={styles.centerPlayBtn} onPress={togglePreviewPlayback}>
+                    <Feather name={isPlaying ? "pause" : "play"} size={30} color="#FFF" />
+                  </Pressable>
+                </View>
+              )}
+            </Pressable>
           )}
           {previewPass > 0 && (
             <Pressable style={styles.fullscreenCloseBtn} onPress={stopPreview}>
@@ -454,7 +493,7 @@ export default function AnalysisScreen() {
 
               <Pressable
                 style={[styles.doneBtn, !analysis && styles.actionBtnDim]}
-                onPress={analysis ? () => setMarksConfirmed(true) : undefined}
+                onPress={analysis ? () => { setMarksConfirmed(true); incrementSwingsAnalyzed(); } : undefined}
               >
                 <Text style={styles.doneBtnLabel}>
                   {analysis ? "Done" : "Set all 3 markers to continue"}
@@ -714,6 +753,22 @@ const styles = StyleSheet.create({
   },
   video: { width: "100%", height: 240 },
   videoFullscreen: { height: "100%" },
+  centerControlsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  centerPlayBtn: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   fullscreenCloseBtn: {
     position: "absolute",
     top: 10,

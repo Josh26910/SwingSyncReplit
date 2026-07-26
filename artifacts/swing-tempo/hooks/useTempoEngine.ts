@@ -4,13 +4,16 @@ import { Platform } from "react-native";
 
 import { getEffectiveDef, useTempo } from "@/context/TempoContext";
 import { playImpact, playStart, playTop, preloadSounds } from "@/utils/audio";
+import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
 
 function hapticLight()  { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  }
 function hapticMedium() { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
 function hapticHeavy()  { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);  }
 
-// Pre-warm audio cache the first time this module loads on native
-if (Platform.OS !== "web") preloadSounds();
+// Pre-warm the audio engine (native: on-disk WAV cache, web: AudioContext)
+// the first time this module loads, so the first tap of Play has no
+// cold-start latency.
+preloadSounds();
 
 export function useTempoEngine() {
   const {
@@ -21,6 +24,8 @@ export function useTempoEngine() {
     setCurrentPhase,
     setCycleProgress,
   } = useTempo();
+
+  useActiveTimeTracker(isPlaying);
 
   const stateRef   = useRef({ running: false, startTime: 0 });
   const timers     = useRef<ReturnType<typeof setTimeout>[]>([]);

@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,7 +14,24 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ContributionGrid } from "@/components/ContributionGrid";
 import { useAuth } from "@/context/AuthContext";
+import {
+  computeStreak,
+  computeTotalSwings,
+  getSessions,
+  getTodaySession,
+  type Session,
+} from "@/utils/sessions";
+
+const REFRESH_INTERVAL_MS = 10000;
+
+function formatMinutes(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  if (mins < 1) return `${seconds}s`;
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
 
 interface SettingItem {
   id: string;
@@ -71,10 +88,28 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signUp, signIn, signOut } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  // Daily Progress tracker: local practice-time + swings-analyzed data,
+  // recorded by useActiveTimeTracker while a tempo plays or a video is
+  // being analyzed. Poll it so the numbers on this tab stay live while the
+  // user is actively practicing on another tab.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => getSessions().then((s) => { if (!cancelled) setSessions(s); });
+    load();
+    const timer = setInterval(load, REFRESH_INTERVAL_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+
+  const todaySession   = getTodaySession(sessions);
+  const practiceStreak = computeStreak(sessions);
+  const totalSwings    = computeTotalSwings(sessions);
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -84,7 +119,7 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
-      if (mode === "signup") await signUp(email.trim(), password);
+      if (mode === "signup") await signUp(email.trim(), password, name.trim() || undefined);
       else await signIn(email.trim(), password);
       setPassword("");
     } catch (err) {
@@ -145,6 +180,37 @@ export default function ProfileScreen() {
           <Text style={styles.subtitle}>
             {user ? "SwingTempo Pro" : "Sign in to sync your data"}
           </Text>
+        </View>
+
+        <View style={styles.progressSection}>
+          <Text style={styles.sectionLabel}>DAILY PROGRESS</Text>
+          <View style={styles.progressCard}>
+            <View style={styles.progressRow}>
+              <View style={styles.progressStat}>
+                <Text style={styles.progressValue}>{formatMinutes(todaySession.duration)}</Text>
+                <Text style={styles.progressStatLabel}>PRACTICED TODAY</Text>
+              </View>
+              <View style={styles.progressDivider} />
+              <View style={styles.progressStat}>
+                <Text style={styles.progressValue}>{todaySession.swings ?? 0}</Text>
+                <Text style={styles.progressStatLabel}>SWINGS TODAY</Text>
+              </View>
+              <View style={styles.progressDivider} />
+              <View style={styles.progressStat}>
+                <Text style={styles.progressValue}>{practiceStreak}</Text>
+                <Text style={styles.progressStatLabel}>DAY STREAK</Text>
+              </View>
+            </View>
+            <View style={styles.progressGridWrap}>
+              <ContributionGrid sessions={sessions} weeks={52} />
+            </View>
+            <View style={styles.progressFooter}>
+              <Feather name="bar-chart-2" size={12} color="#444444" />
+              <Text style={styles.progressFooterText}>
+                {totalSwings} swing{totalSwings !== 1 ? "s" : ""} analyzed all-time
+              </Text>
+            </View>
+          </View>
         </View>
 
         {user ? (
@@ -234,6 +300,26 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.formSection}>
+              {mode === "signup" && (
+                <View style={styles.inputWrapper}>
+                  <Feather
+                    name="user"
+                    size={16}
+                    color="#444444"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Name (optional)"
+                    placeholderTextColor="#333333"
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    autoComplete="name"
+                  />
+                </View>
+              )}
+
               <View style={styles.inputWrapper}>
                 <Feather
                   name="mail"
@@ -298,7 +384,15 @@ export default function ProfileScreen() {
               </Pressable>
 
               {mode === "signin" && (
-                <Pressable style={styles.forgotBtn}>
+                <Pressable
+                  style={styles.forgotBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      "Not Available Yet",
+                      "Password reset isn't set up yet — check back soon."
+                    )
+                  }
+                >
                   <Text style={styles.forgotLabel}>Forgot Password?</Text>
                 </Pressable>
               )}
@@ -345,6 +439,51 @@ const styles = StyleSheet.create({
     color: "#444444",
     marginTop: 2,
     letterSpacing: 1,
+    fontFamily: "Inter_400Regular",
+  },
+  progressSection: { marginBottom: 24 },
+  progressCard: {
+    backgroundColor: "#0D0D0D",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+    padding: 16,
+    gap: 12,
+  },
+  progressRow: { flexDirection: "row", alignItems: "center" },
+  progressStat: { flex: 1, alignItems: "center", gap: 4 },
+  progressDivider: { width: 1, height: 32, backgroundColor: "#1A1A1A" },
+  progressGridWrap: {
+    borderTopWidth: 1,
+    borderTopColor: "#1A1A1A",
+    paddingTop: 12,
+  },
+  progressValue: {
+    fontSize: 20,
+    color: "#1A8CFF",
+    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
+  },
+  progressStatLabel: {
+    fontSize: 9,
+    color: "#444444",
+    letterSpacing: 0.8,
+    fontFamily: "Inter_600SemiBold",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  progressFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#1A1A1A",
+  },
+  progressFooterText: {
+    fontSize: 11,
+    color: "#444444",
     fontFamily: "Inter_400Regular",
   },
   avatarSection: { alignItems: "center", gap: 10, marginBottom: 28 },

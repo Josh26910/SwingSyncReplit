@@ -31,6 +31,7 @@ _Replace the heading above with the project's name, and this line with one sente
 
 - Auth is email + password (bcrypt-hashed, JWT bearer tokens), not magic-link/OTP, because no transactional email service is configured yet — password auth doesn't require sending mail to work. Revisit once an email provider (e.g. Resend) is wired up.
 - Mobile app auth tokens should be persisted with `expo-secure-store` and supplied to `@workspace/api-client-react` via `setAuthTokenGetter`; the base API URL is set via `setBaseUrl` and must point at wherever `@workspace/api-server` is actually deployed.
+- `EXPO_PUBLIC_API_URL` (consumed by `context/AuthContext.tsx` via `setBaseUrl`) is wired to `https://$REPLIT_DEV_DOMAIN` in both `artifacts/swing-tempo/package.json`'s `dev` script and `artifacts/swing-tempo/scripts/build.js` — this relies on `artifacts/api-server` being routed on that same domain under `/api` (see its `artifact.toml`). If the API server is ever deployed to a different domain, update both of those instead of hand-editing generated client code.
 
 ## Product
 

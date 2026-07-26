@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Platform,
   Pressable,
@@ -15,12 +15,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SwingTimeline } from "@/components/SwingTimeline";
 import {
   getEffectiveDef,
+  LONG_TEMPO_KEYS,
+  SHORT_TEMPO_KEYS,
   TempoKey,
   useTempo,
 } from "@/context/TempoContext";
 import { useTempoEngine } from "@/hooks/useTempoEngine";
-
-const TEMPO_KEYS: TempoKey[] = ["18/6", "21/7", "24/8", "27/9", "30/10"];
 
 const BLUE    = "#1A8CFF";
 const CRIMSON = "#FF3B30";
@@ -57,6 +57,17 @@ export default function TonesScreen() {
   } = useTempo();
 
   useTempoEngine();
+
+  const TEMPO_KEYS = gameMode === "short" ? SHORT_TEMPO_KEYS : LONG_TEMPO_KEYS;
+
+  // Keep the selected tempo valid for the active game mode — switching
+  // between Long/Short Game swaps the whole preset array out from under it.
+  useEffect(() => {
+    if (selectedTempo !== "custom" && !TEMPO_KEYS.includes(selectedTempo)) {
+      setSelectedTempo(TEMPO_KEYS[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameMode]);
 
   // Use the effective definition — handles custom player tempo
   const def           = getEffectiveDef(selectedTempo, customTempo);
