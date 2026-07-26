@@ -97,15 +97,16 @@ export default function ProfileScreen() {
 
   // Daily Progress tracker: local practice-time + swings-analyzed data,
   // recorded by useActiveTimeTracker while a tempo plays or a video is
-  // being analyzed. Poll it so the numbers on this tab stay live while the
-  // user is actively practicing on another tab.
+  // being analyzed. Only shown to signed-in users (see JSX below), so only
+  // poll it once there's actually a user to show it to.
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     const load = () => getSessions().then((s) => { if (!cancelled) setSessions(s); });
     load();
     const timer = setInterval(load, REFRESH_INTERVAL_MS);
     return () => { cancelled = true; clearInterval(timer); };
-  }, []);
+  }, [user]);
 
   const todaySession   = getTodaySession(sessions);
   const practiceStreak = computeStreak(sessions);
@@ -182,36 +183,58 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
-        <View style={styles.progressSection}>
-          <Text style={styles.sectionLabel}>DAILY PROGRESS</Text>
-          <View style={styles.progressCard}>
-            <View style={styles.progressRow}>
-              <View style={styles.progressStat}>
-                <Text style={styles.progressValue}>{formatMinutes(todaySession.duration)}</Text>
-                <Text style={styles.progressStatLabel}>PRACTICED TODAY</Text>
+        {user ? (
+          <View style={styles.progressSection}>
+            <Text style={styles.sectionLabel}>DAILY PROGRESS</Text>
+            <View style={styles.progressCard}>
+              <View style={styles.progressRow}>
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressValue}>{formatMinutes(todaySession.duration)}</Text>
+                  <Text style={styles.progressStatLabel}>PRACTICED TODAY</Text>
+                </View>
+                <View style={styles.progressDivider} />
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressValue}>{todaySession.swings ?? 0}</Text>
+                  <Text style={styles.progressStatLabel}>SWINGS TODAY</Text>
+                </View>
+                <View style={styles.progressDivider} />
+                <View style={styles.progressStat}>
+                  <Text style={styles.progressValue}>{practiceStreak}</Text>
+                  <Text style={styles.progressStatLabel}>DAY STREAK</Text>
+                </View>
               </View>
-              <View style={styles.progressDivider} />
-              <View style={styles.progressStat}>
-                <Text style={styles.progressValue}>{todaySession.swings ?? 0}</Text>
-                <Text style={styles.progressStatLabel}>SWINGS TODAY</Text>
+              <View style={styles.progressGridWrap}>
+                <ContributionGrid sessions={sessions} weeks={52} />
               </View>
-              <View style={styles.progressDivider} />
-              <View style={styles.progressStat}>
-                <Text style={styles.progressValue}>{practiceStreak}</Text>
-                <Text style={styles.progressStatLabel}>DAY STREAK</Text>
+              <View style={styles.progressFooter}>
+                <Feather name="bar-chart-2" size={12} color="#444444" />
+                <Text style={styles.progressFooterText}>
+                  {totalSwings} swing{totalSwings !== 1 ? "s" : ""} analyzed all-time
+                </Text>
               </View>
-            </View>
-            <View style={styles.progressGridWrap}>
-              <ContributionGrid sessions={sessions} weeks={52} />
-            </View>
-            <View style={styles.progressFooter}>
-              <Feather name="bar-chart-2" size={12} color="#444444" />
-              <Text style={styles.progressFooterText}>
-                {totalSwings} swing{totalSwings !== 1 ? "s" : ""} analyzed all-time
-              </Text>
             </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.progressSection}>
+            <Text style={styles.sectionLabel}>DAILY PROGRESS</Text>
+            <View style={styles.progressLockedCard}>
+              <View style={styles.progressLockedIcon}>
+                <Feather name="bar-chart-2" size={22} color="#1A8CFF" />
+              </View>
+              <Text style={styles.progressLockedTitle}>Track Your Practice</Text>
+              <Text style={styles.progressLockedSubtitle}>
+                Create a free account to track daily practice time, swings analyzed, and build
+                your streak on a GitHub-style activity grid.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.progressLockedBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => { Haptics.selectionAsync(); setMode("signup"); }}
+              >
+                <Text style={styles.progressLockedBtnLabel}>Create Free Account</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {user ? (
           <>
@@ -485,6 +508,49 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#444444",
     fontFamily: "Inter_400Regular",
+  },
+  progressLockedCard: {
+    backgroundColor: "#0D0D0D",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+    borderStyle: "dashed",
+    padding: 20,
+    alignItems: "center",
+    gap: 6,
+  },
+  progressLockedIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#1A8CFF18",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  progressLockedTitle: {
+    fontSize: 15,
+    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
+  },
+  progressLockedSubtitle: {
+    fontSize: 12,
+    color: "#555555",
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  progressLockedBtn: {
+    backgroundColor: "#1A8CFF",
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  progressLockedBtnLabel: {
+    fontSize: 13,
+    color: "#FFFFFF",
+    fontFamily: "Inter_700Bold",
   },
   avatarSection: { alignItems: "center", gap: 10, marginBottom: 28 },
   avatarRing: {
