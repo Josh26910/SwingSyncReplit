@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import {
+  computeStreak,
   durationToLevel,
   finalizeSession,
   getSessions,
@@ -74,20 +75,6 @@ function buildGrid(sessions: Session[]) {
   }
 
   return { weeks, monthLabels };
-}
-
-/** Compute streak */
-function computeStreak(sessions: Session[]): number {
-  const dates = new Set(sessions.map((s) => s.date));
-  let streak = 0;
-  const d = new Date();
-  while (true) {
-    const iso = d.toISOString().slice(0, 10);
-    if (!dates.has(iso)) break;
-    streak++;
-    d.setDate(d.getDate() - 1);
-  }
-  return streak;
 }
 
 function computeTotalThisMonth(sessions: Session[]): number {

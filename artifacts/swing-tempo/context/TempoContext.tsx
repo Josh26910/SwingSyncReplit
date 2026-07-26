@@ -2,7 +2,10 @@ import React, { createContext, useContext, useState } from "react";
 
 import type { PlayerTempo } from "@/data/tempoPlayers";
 
-export type TempoKey = "18/6" | "21/7" | "24/8" | "27/9" | "30/10" | "custom";
+export type TempoKey =
+  | "18/6" | "21/7" | "24/8" | "27/9" | "30/10"
+  | "14/7" | "16/8" | "18/9" | "20/10" | "22/11" | "24/12"
+  | "custom";
 export type GameMode  = "long" | "short";
 export type AudioMode = "tones" | "piano" | "voice";
 
@@ -56,7 +59,59 @@ export const TEMPOS: Record<Exclude<TempoKey, "custom">, TempoDefinition> = {
     backswingFrames: 30,
     downswingFrames: 10,
   },
+  // ── Short Game presets (2:1 ratio) ──────────────────────────────
+  "14/7": {
+    key: "14/7",
+    label: "14/7",
+    topMs: 467,
+    impactMs: 700,
+    backswingFrames: 14,
+    downswingFrames: 7,
+  },
+  "16/8": {
+    key: "16/8",
+    label: "16/8",
+    topMs: 533,
+    impactMs: 800,
+    backswingFrames: 16,
+    downswingFrames: 8,
+  },
+  "18/9": {
+    key: "18/9",
+    label: "18/9",
+    topMs: 600,
+    impactMs: 900,
+    backswingFrames: 18,
+    downswingFrames: 9,
+  },
+  "20/10": {
+    key: "20/10",
+    label: "20/10",
+    topMs: 667,
+    impactMs: 1000,
+    backswingFrames: 20,
+    downswingFrames: 10,
+  },
+  "22/11": {
+    key: "22/11",
+    label: "22/11",
+    topMs: 733,
+    impactMs: 1100,
+    backswingFrames: 22,
+    downswingFrames: 11,
+  },
+  "24/12": {
+    key: "24/12",
+    label: "24/12",
+    topMs: 800,
+    impactMs: 1200,
+    backswingFrames: 24,
+    downswingFrames: 12,
+  },
 };
+
+export const LONG_TEMPO_KEYS: TempoKey[] = ["18/6", "21/7", "24/8", "27/9", "30/10"];
+export const SHORT_TEMPO_KEYS: TempoKey[] = ["14/7", "16/8", "18/9", "20/10", "22/11", "24/12"];
 
 /** Returns the effective TempoDefinition, using player data when "custom". */
 export function getEffectiveDef(

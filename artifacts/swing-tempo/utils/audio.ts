@@ -116,7 +116,26 @@ function getWebCtx() {
       )();
     } catch { /* ignore */ }
   }
+  // Browsers start contexts "suspended" until a user gesture resumes them;
+  // resuming here (instead of lazily on first real tone) means the very
+  // first tap doesn't pay that unsuspend latency on top of the beep itself.
+  if (webCtx && webCtx.state === "suspended") {
+    webCtx.resume().catch(() => { /* ignore */ });
+  }
   return webCtx;
+}
+
+/** Silent zero-gain blip that forces the audio graph to fully spin up. */
+function warmWebCtx() {
+  const ctx = getWebCtx(); if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.01);
+  } catch { /* ignore */ }
 }
 
 function webTone(freq: number, dur: number, gain: number) {
@@ -244,7 +263,13 @@ async function speakWord(word: string) {
 ─────────────────────────────────────────────────────────────────── */
 
 export async function preloadSounds() {
-  if (Platform.OS === "web") return;
+  if (Platform.OS === "web") {
+    // No file cache on web — instead warm the AudioContext itself so the
+    // very first tap doesn't eat the "cold start" latency of creating and
+    // unsuspending it.
+    warmWebCtx();
+    return;
+  }
   // Fire-and-forget — cache gets populated; first play might be slightly
   // late but subsequent ones will be instant.
   loadNativeSound("tone_start",  660,   0.12, 0.55);
@@ -253,6 +278,17 @@ export async function preloadSounds() {
   loadNativeSound("piano_start", 523.25, 0.55, 0.50, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 });
   loadNativeSound("piano_top",   659.25, 0.55, 0.55, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 });
   loadNativeSound("piano_impact",880.0,  0.65, 0.60, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 });
+}
+
+/** Stops anything that can linger past a phase's short envelope (voice cues). */
+export function stopAllAudio() {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    return;
+  }
+  Speech.stop().catch(() => { /* ignore */ });
 }
 
 export function playStart(mode: string) {
