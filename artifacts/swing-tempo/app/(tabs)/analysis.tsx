@@ -3,9 +3,12 @@ import { Video, ResizeMode } from "expo-av";
 import type { AVPlaybackStatus } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Animated,
   Image,
   Platform,
   Pressable,
@@ -25,9 +28,14 @@ import {
   type Markers,
   type Swing,
 } from "@/context/SwingLibraryContext";
+import { CATEGORY_LABELS, type ShotCategory } from "@/data/tempoPlayers";
 import { playImpact, playStart, playTop, stopAllAudio } from "@/utils/audio";
+import { hapticImpact, hapticTakeaway, hapticTop } from "@/utils/haptics";
 import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
 import { incrementSwingsAnalyzed } from "@/utils/sessions";
+import { computeSwingAnalysis } from "@/utils/swingAnalysis";
+import { addSwingRecord } from "@/utils/swingHistory";
+import { generateThumbnail } from "@/utils/thumbnails";
 
 const FPS = 30;
 const MS_PER_FRAME = 1000 / FPS;
@@ -36,6 +44,10 @@ const SHORT_GAME_RATIO = 2.0;
 const BLUE = "#1A8CFF";
 const RED = "#FF3B30";
 const ORANGE = "#FF9F0A";
+const CLUB_TAGS: ShotCategory[] = ["tee", "approach", "shortgame", "putting"];
+/** How close to the impact marker (ms of video time) triggers the slow-motion zoom. */
+const IMPACT_ZOOM_WINDOW_MS = 350;
+const IMPACT_ZOOM_SCALE = 1.35;
 
 const PHASE_WORDS: Record<"takeaway" | "top" | "impact", string> = {
   takeaway: "TAKEAWAY",
@@ -79,6 +91,8 @@ export default function AnalysisScreen() {
     fired: new Set(),
     transitioning: false,
   });
+  const impactZoomAnim = useRef(new Animated.Value(1)).current;
+  const zoomedRef = useRef(false);
 
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
@@ -106,6 +120,8 @@ export default function AnalysisScreen() {
     setMarksConfirmed(false);
     setShowControls(false);
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
+    zoomedRef.current = false;
+    impactZoomAnim.setValue(1);
   }, [activeSwing?.id]);
 
   const pickVideo = async () => {
@@ -126,14 +142,18 @@ export default function AnalysisScreen() {
     });
     if (!result.canceled && result.assets[0]) {
       const origin = activeOrigin ?? "mine";
+      const uri = result.assets[0].uri;
       const newSwing: Swing = {
         id:      Date.now().toString(),
-        uri:     result.assets[0].uri,
+        uri,
         name:    `Swing ${Date.now()}`,
         markers: EMPTY_MARKERS,
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);
+      generateThumbnail(uri).then((thumbnailUri) => {
+        if (thumbnailUri) updateSwing(origin, newSwing.id, { thumbnailUri });
+      });
     }
   };
 
@@ -161,40 +181,29 @@ export default function AnalysisScreen() {
     updateSwing(activeOrigin, activeSwing.id, { markers: { ...marks, [mark]: null } });
   };
 
-  const getAnalysis = () => {
-    if (marks.takeaway === null || marks.top === null || marks.impact === null) return null;
-    const backswingMs = marks.top - marks.takeaway;
-    const downswingMs = marks.impact - marks.top;
-    if (downswingMs <= 0 || backswingMs <= 0) return null;
-    const ratio = backswingMs / downswingMs;
-    const accuracy = Math.max(0, 100 - Math.abs(ratio - perfectRatio) * 33);
-    return {
-      backswingMs,
-      downswingMs,
-      backswingFrames: Math.round(backswingMs / MS_PER_FRAME),
-      downswingFrames: Math.round(downswingMs / MS_PER_FRAME),
-      ratio: ratio.toFixed(2),
-      accuracy: Math.round(accuracy),
-      grade:
-        accuracy >= 90
-          ? "ELITE"
-          : accuracy >= 75
-          ? "TOUR"
-          : accuracy >= 60
-          ? "GOOD"
-          : "IMPROVE",
-      gradeColor:
-        accuracy >= 90
-          ? "#30D158"
-          : accuracy >= 75
-          ? "#1A8CFF"
-          : accuracy >= 60
-          ? "#FF9F0A"
-          : "#FF3B30",
-    };
+  const setClub = (club: ShotCategory) => {
+    if (!activeSwing) return;
+    Haptics.selectionAsync();
+    updateSwing(activeOrigin, activeSwing.id, { club: activeSwing.club === club ? undefined : club });
   };
 
-  const analysis = getAnalysis();
+  const analysis = computeSwingAnalysis(marks, perfectRatio);
+
+  const finishAnalysis = () => {
+    if (!analysis || !activeSwing) return;
+    setMarksConfirmed(true);
+    incrementSwingsAnalyzed();
+    addSwingRecord({
+      swingId: activeSwing.id,
+      origin: activeOrigin,
+      golferName,
+      gameMode,
+      club: activeSwing.club ?? null,
+      ratio: analysis.ratio,
+      accuracy: analysis.accuracy,
+      thumbnailUri: activeSwing.thumbnailUri ?? null,
+    });
+  };
 
   // Live frame counter: a single growing number during the backswing, then
   // a backswing/downswing split that keeps counting through the downswing,
@@ -251,17 +260,39 @@ export default function AnalysisScreen() {
       if (marks.takeaway !== null && !pr.fired.has("takeaway") && pos >= marks.takeaway) {
         pr.fired.add("takeaway");
         playStart(audioMode);
+        hapticTakeaway();
         setPreviewWord(PHASE_WORDS.takeaway);
       }
       if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
         pr.fired.add("top");
         playTop(audioMode);
+        hapticTop();
         setPreviewWord(PHASE_WORDS.top);
       }
       if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
         pr.fired.add("impact");
         playImpact(audioMode);
+        hapticImpact();
         setPreviewWord(PHASE_WORDS.impact);
+      }
+
+      // Slow-motion impact zoom: only during the dedicated slow-mo pass
+      // (pass 3), ease the video in/out of a tight zoom around the impact
+      // marker so the moment of contact reads clearly without needing real
+      // subject tracking.
+      if (pr.pass === 3 && marks.impact !== null) {
+        const withinZoomWindow = Math.abs(pos - marks.impact) <= IMPACT_ZOOM_WINDOW_MS;
+        if (withinZoomWindow !== zoomedRef.current) {
+          zoomedRef.current = withinZoomWindow;
+          Animated.timing(impactZoomAnim, {
+            toValue: withinZoomWindow ? IMPACT_ZOOM_SCALE : 1,
+            duration: 220,
+            useNativeDriver: true,
+          }).start();
+        }
+      } else if (zoomedRef.current) {
+        zoomedRef.current = false;
+        Animated.timing(impactZoomAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
       }
 
       if (!pr.transitioning && end > 0 && pos >= end) {
@@ -302,6 +333,8 @@ export default function AnalysisScreen() {
     setPreviewPass(1);
     setPreviewWord("");
     setShowControls(false);
+    zoomedRef.current = false;
+    impactZoomAnim.setValue(1);
     await videoRef.current.setRateAsync(1.0, true);
     await videoRef.current.setPositionAsync(0);
     await videoRef.current.playAsync();
@@ -318,14 +351,42 @@ export default function AnalysisScreen() {
     setPreviewPass(0);
     setPreviewWord("");
     setShowControls(false);
+    zoomedRef.current = false;
+    impactZoomAnim.setValue(1);
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
     await videoRef.current?.setPositionAsync(0);
   };
 
-  // Export is a stub for now: it runs the same in-app preview as the Preview
-  // button until real video-file export (server-side compositing) is built.
-  const handleExport = startPreview;
+  // v1: share the original clip via the OS share sheet. Burning the tempo
+  // overlay/watermark into an actual re-encoded video file needs a native
+  // video-processing toolchain (ffmpeg-kit or similar) that Expo Go can't
+  // load — revisit once the app has a custom dev client.
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExport = async () => {
+    if (!activeSwing || !analysis) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "web") {
+      Alert.alert("Not Available on Web", "Sharing isn't supported in the web preview — try this on your phone.");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert("Not Available", "Sharing isn't available on this device.");
+        return;
+      }
+      await Sharing.shareAsync(activeSwing.uri, {
+        dialogTitle: "Share Your Swing",
+        mimeType: "video/mp4",
+      });
+    } catch (err) {
+      Alert.alert("Export Failed", err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const isMarking = !!videoUri && !marksConfirmed && previewPass === 0;
   const isFullscreen = previewPass > 0 || isMarking;
@@ -349,20 +410,23 @@ export default function AnalysisScreen() {
 
       {videoUri ? (
         <View style={[styles.videoWrapper, isFullscreen && styles.videoWrapperFullscreen]}>
+          <Animated.View
+            style={[
+              !isFullscreen ? { width: "100%", height: dockedVideoHeight } : styles.videoFullscreen,
+              { transform: [{ scale: impactZoomAnim }] },
+            ]}
+          >
           <Video
             ref={videoRef}
             source={{ uri: videoUri }}
-            style={[
-              styles.video,
-              !isFullscreen && { height: dockedVideoHeight },
-              isFullscreen && styles.videoFullscreen,
-            ]}
+            style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
             onPlaybackStatusUpdate={handleStatus}
             onReadyForDisplay={handleReadyForDisplay}
           />
+          </Animated.View>
           {previewPass === 0 && (
             <View style={styles.frameOverlay}>
               <Text style={styles.frameCounter}>
@@ -421,7 +485,7 @@ export default function AnalysisScreen() {
                     </Text>
                   </View>
                   <Text style={styles.gradeOverlayPercent}>{analysis.accuracy}%</Text>
-                  <Text style={styles.gradeOverlayRatio}>{analysis.ratio}:1</Text>
+                  <Text style={styles.gradeOverlayRatio}>{analysis.ratioStr}:1</Text>
                 </>
               ) : counterPhase === "back" ? (
                 <Text style={[styles.counterNum, { color: BLUE }]}>{backCount}</Text>
@@ -493,7 +557,7 @@ export default function AnalysisScreen() {
 
               <Pressable
                 style={[styles.doneBtn, !analysis && styles.actionBtnDim]}
-                onPress={analysis ? () => { setMarksConfirmed(true); incrementSwingsAnalyzed(); } : undefined}
+                onPress={analysis ? finishAnalysis : undefined}
               >
                 <Text style={styles.doneBtnLabel}>
                   {analysis ? "Done" : "Set all 3 markers to continue"}
@@ -565,6 +629,26 @@ export default function AnalysisScreen() {
               </View>
             </View>
 
+            <View style={styles.marksSection}>
+              <Text style={styles.sectionLabel}>CLUB (OPTIONAL)</Text>
+              <View style={styles.clubChipRow}>
+                {CLUB_TAGS.map((tag) => {
+                  const active = activeSwing?.club === tag;
+                  return (
+                    <Pressable
+                      key={tag}
+                      style={[styles.clubChip, active && styles.clubChipActive]}
+                      onPress={() => setClub(tag)}
+                    >
+                      <Text style={[styles.clubChipLabel, active && styles.clubChipLabelActive]}>
+                        {CATEGORY_LABELS[tag]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
             {analysis ? (
               <View style={styles.analysisCard}>
                 <View style={styles.analysisHeader}>
@@ -620,7 +704,7 @@ export default function AnalysisScreen() {
                     </View>
                     <View style={styles.statItem}>
                       <Text style={styles.statLabel}>YOUR RATIO</Text>
-                      <Text style={styles.statValue}>{analysis.ratio}:1</Text>
+                      <Text style={styles.statValue}>{analysis.ratioStr}:1</Text>
                     </View>
                     <View style={styles.statItem}>
                       <Text style={styles.statLabel}>GOLD STANDARD</Text>
@@ -671,11 +755,17 @@ export default function AnalysisScreen() {
                 <Text style={styles.actionBtnLabel}>Preview</Text>
               </Pressable>
               <Pressable
-                style={[styles.actionBtn, styles.actionBtnSecondary, !analysis && styles.actionBtnDim]}
-                onPress={analysis ? handleExport : undefined}
+                style={[styles.actionBtn, styles.actionBtnSecondary, (!analysis || isExporting) && styles.actionBtnDim]}
+                onPress={analysis && !isExporting ? handleExport : undefined}
               >
-                <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
-                <Text style={[styles.actionBtnLabel, { color: BLUE }]}>Export</Text>
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={BLUE} style={{ marginRight: 8 }} />
+                ) : (
+                  <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
+                )}
+                <Text style={[styles.actionBtnLabel, { color: BLUE }]}>
+                  {isExporting ? "Sharing..." : "Export"}
+                </Text>
               </Pressable>
             </View>
 
@@ -751,8 +841,8 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     marginHorizontal: 0,
   },
-  video: { width: "100%", height: 240 },
-  videoFullscreen: { height: "100%" },
+  video: { width: "100%", height: "100%" },
+  videoFullscreen: { width: "100%", height: "100%" },
   centerControlsOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
@@ -1031,6 +1121,18 @@ const styles = StyleSheet.create({
     color: "#555555",
   },
   audioModeLabelActive: { color: "#FFFFFF" },
+  clubChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  clubChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#0D0D0D",
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+  },
+  clubChipActive: { backgroundColor: BLUE + "22", borderColor: BLUE },
+  clubChipLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#555555" },
+  clubChipLabelActive: { color: BLUE },
   marksSection: { marginBottom: 20 },
   sectionLabel: {
     fontSize: 10,

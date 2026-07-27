@@ -1,14 +1,9 @@
-import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef } from "react";
-import { Platform } from "react-native";
 
 import { getEffectiveDef, useTempo } from "@/context/TempoContext";
 import { playImpact, playStart, playTop, preloadSounds } from "@/utils/audio";
 import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
-
-function hapticLight()  { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  }
-function hapticMedium() { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
-function hapticHeavy()  { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);  }
+import { hapticImpact, hapticTakeaway, hapticTop } from "@/utils/haptics";
 
 // Pre-warm the audio engine (native: on-disk WAV cache, web: AudioContext)
 // the first time this module loads, so the first tap of Play has no
@@ -50,18 +45,18 @@ export function useTempoEngine() {
     const runCycle = () => {
       stateRef.current.startTime = Date.now();
       setCurrentPhase("start");
-      hapticLight();
+      hapticTakeaway();
       playStart(audioMode);
 
       const t1 = setTimeout(() => {
         setCurrentPhase("top");
-        hapticMedium();
+        hapticTop();
         playTop(audioMode);
       }, tempo.topMs);
 
       const t2 = setTimeout(() => {
         setCurrentPhase("impact");
-        hapticHeavy();
+        hapticImpact();
         playImpact(audioMode);
       }, tempo.impactMs);
 

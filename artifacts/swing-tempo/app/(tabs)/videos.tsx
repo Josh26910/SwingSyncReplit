@@ -8,10 +8,12 @@
 
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -29,6 +31,7 @@ import {
   type SwingOrigin,
 } from "@/context/SwingLibraryContext";
 import { TEMPO_PLAYERS } from "@/data/tempoPlayers";
+import { generateThumbnail } from "@/utils/thumbnails";
 
 const BLUE   = "#1A8CFF";
 const RED    = "#FF3B30";
@@ -43,11 +46,51 @@ const PRO_SWINGS = Object.values(
   }, {}),
 ).slice(0, 8);
 
+interface CompareSelection {
+  origin: SwingOrigin;
+  id: string;
+}
+
 export default function VideosScreen() {
   const insets = useSafeAreaInsets();
-  const { swings, proSwings, addSwing, setActive } = useSwingLibrary();
+  const { swings, proSwings, addSwing, updateSwing, setActive } = useSwingLibrary();
 
   const [tab, setTab] = useState<"pro" | "mine">("pro");
+  const [compareMode, setCompareMode] = useState(false);
+  const [selected, setSelected] = useState<CompareSelection[]>([]);
+
+  const toggleCompareMode = () => {
+    Haptics.selectionAsync();
+    setCompareMode((v) => !v);
+    setSelected([]);
+  };
+
+  const toggleSelect = (origin: SwingOrigin, swing: Swing) => {
+    const { takeaway, top, impact } = swing.markers;
+    if (takeaway === null || top === null || impact === null) {
+      Alert.alert("Markers Needed", "Mark Takeaway, Top, and Impact on this swing in Analysis before comparing it.");
+      return;
+    }
+    Haptics.selectionAsync();
+    setSelected((prev) => {
+      const exists = prev.some((s) => s.origin === origin && s.id === swing.id);
+      if (exists) return prev.filter((s) => !(s.origin === origin && s.id === swing.id));
+      if (prev.length >= 2) return [prev[1], { origin, id: swing.id }];
+      return [...prev, { origin, id: swing.id }];
+    });
+  };
+
+  const startCompare = () => {
+    if (selected.length !== 2) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const [a, b] = selected;
+    router.push({
+      pathname: "/compare",
+      params: { aOrigin: a.origin, aId: a.id, bOrigin: b.origin, bId: b.id },
+    });
+    setCompareMode(false);
+    setSelected([]);
+  };
 
   /* ── Pick video ────────────────────────────────────────────────── */
   const pickVideo = useCallback(
@@ -73,12 +116,19 @@ export default function VideosScreen() {
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);
+      generateThumbnail(asset.uri).then((thumbnailUri) => {
+        if (thumbnailUri) updateSwing(origin, newSwing.id, { thumbnailUri });
+      });
       router.push("/(tabs)/analysis");
     },
-    [swings, proSwings, addSwing, setActive],
+    [swings, proSwings, addSwing, setActive, updateSwing],
   );
 
   const openSwing = (origin: SwingOrigin, swing: Swing) => {
+    if (compareMode) {
+      toggleSelect(origin, swing);
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActive(origin, swing.id);
     router.push("/(tabs)/analysis");
@@ -87,10 +137,19 @@ export default function VideosScreen() {
   const renderSwingCard = (origin: SwingOrigin, swing: Swing) => {
     const { takeaway, top, impact } = swing.markers;
     const allSet = takeaway !== null && top !== null && impact !== null;
+    const isSelected = selected.some((s) => s.origin === origin && s.id === swing.id);
     return (
-      <Pressable key={swing.id} style={styles.swingCard} onPress={() => openSwing(origin, swing)}>
+      <Pressable
+        key={swing.id}
+        style={[styles.swingCard, compareMode && isSelected && styles.swingCardSelected]}
+        onPress={() => openSwing(origin, swing)}
+      >
         <View style={styles.swingThumb}>
-          <Feather name="video" size={24} color="#333" />
+          {swing.thumbnailUri ? (
+            <Image source={{ uri: swing.thumbnailUri }} style={styles.swingThumbImage} contentFit="cover" />
+          ) : (
+            <Feather name="video" size={24} color="#333" />
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.swingName}>{swing.name}</Text>
@@ -110,8 +169,16 @@ export default function VideosScreen() {
           </View>
         </View>
         <View style={{ alignItems: "flex-end", gap: 4 }}>
-          {allSet && <View style={styles.readyDot} />}
-          <Feather name="chevron-right" size={18} color="#333" />
+          {compareMode ? (
+            <View style={[styles.compareCheck, isSelected && styles.compareCheckActive]}>
+              {isSelected && <Feather name="check" size={12} color="#FFF" />}
+            </View>
+          ) : (
+            <>
+              {allSet && <View style={styles.readyDot} />}
+              <Feather name="chevron-right" size={18} color="#333" />
+            </>
+          )}
         </View>
       </Pressable>
     );
@@ -121,7 +188,18 @@ export default function VideosScreen() {
     <View style={[styles.root, { paddingTop: insets.top + (Platform.OS === "web" ? 20 : 10) }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>SWING LAB</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}>SWING LAB</Text>
+          <Pressable
+            style={[styles.compareToggle, compareMode && styles.compareToggleActive]}
+            onPress={toggleCompareMode}
+          >
+            <Feather name="columns" size={13} color={compareMode ? "#FFF" : BLUE} />
+            <Text style={[styles.compareToggleText, compareMode && styles.compareToggleTextActive]}>
+              {compareMode ? "Cancel" : "Compare"}
+            </Text>
+          </Pressable>
+        </View>
         <View style={styles.tabRow}>
           <Pressable style={[styles.tabBtn, tab === "pro" && styles.tabBtnActive]} onPress={() => setTab("pro")}>
             <Text style={[styles.tabBtnText, tab === "pro" && styles.tabBtnTextActive]}>Pro Swings</Text>
@@ -130,6 +208,11 @@ export default function VideosScreen() {
             <Text style={[styles.tabBtnText, tab === "mine" && styles.tabBtnTextActive]}>My Swings</Text>
           </Pressable>
         </View>
+        {compareMode && (
+          <Text style={styles.compareHint}>
+            Select 2 swings with all markers set ({selected.length}/2 selected)
+          </Text>
+        )}
       </View>
 
       {/* My Swings */}
@@ -205,6 +288,16 @@ export default function VideosScreen() {
           )}
         />
       )}
+
+      {compareMode && selected.length === 2 && (
+        <Pressable
+          style={[styles.compareFab, { bottom: insets.bottom + (Platform.OS === "web" ? 96 : 76) }]}
+          onPress={startCompare}
+        >
+          <Feather name="play" size={16} color="#FFF" style={{ marginRight: 8 }} />
+          <Text style={styles.compareFabText}>Compare Selected</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -214,7 +307,13 @@ const styles = StyleSheet.create({
 
   /* ── Header ─────────────────── */
   header:          { paddingHorizontal: 20, marginBottom: 12 },
-  headerTitle:     { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF", letterSpacing: 3, marginBottom: 12 },
+  headerTitleRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  headerTitle:     { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF", letterSpacing: 3 },
+  compareToggle:   { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: BLUE + "44", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  compareToggleActive: { backgroundColor: BLUE, borderColor: BLUE },
+  compareToggleText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: BLUE },
+  compareToggleTextActive: { color: "#FFF" },
+  compareHint:     { fontSize: 11, fontFamily: "Inter_400Regular", color: "#555", marginTop: 8 },
   tabRow:          { flexDirection: "row", backgroundColor: "#111", borderRadius: 12, padding: 3, gap: 3 },
   tabBtn:          { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 10 },
   tabBtnActive:    { backgroundColor: BLUE },
@@ -236,13 +335,36 @@ const styles = StyleSheet.create({
 
   /* ── Swing card ─────────────── */
   swingCard:   { flexDirection: "row", alignItems: "center", backgroundColor: "#0D0D0D", borderRadius: 14, borderWidth: 1, borderColor: "#1A1A1A", padding: 12, gap: 12 },
-  swingThumb:  { width: 56, height: 56, borderRadius: 10, backgroundColor: "#111", alignItems: "center", justifyContent: "center" },
+  swingCardSelected: { borderColor: BLUE },
+  swingThumb:  { width: 56, height: 56, borderRadius: 10, backgroundColor: "#111", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  swingThumbImage: { width: "100%", height: "100%" },
   swingName:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF", marginBottom: 6 },
   swingBadges: { flexDirection: "row", gap: 6 },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   badgeDot:    { width: 5, height: 5, borderRadius: 3 },
   badgeText:   { fontSize: 10, fontFamily: "Inter_500Medium" },
   readyDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: "#30D158" },
+  compareCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "#333", alignItems: "center", justifyContent: "center" },
+  compareCheckActive: { backgroundColor: BLUE, borderColor: BLUE },
+
+  /* ── Compare FAB ────────────── */
+  compareFab: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: BLUE,
+    borderRadius: 16,
+    paddingVertical: 15,
+    shadowColor: BLUE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  compareFabText: { color: "#FFF", fontFamily: "Inter_700Bold", fontSize: 14 },
 
   /* ── Pro card ───────────────── */
   proCard:       { flexDirection: "row", alignItems: "flex-start", backgroundColor: "#0D0D0D", borderRadius: 14, borderWidth: 1, borderColor: "#1A1A1A", padding: 14, gap: 12 },

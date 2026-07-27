@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { CloudSyncManager } from "@/components/CloudSyncManager";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { SwingLibraryProvider } from "@/context/SwingLibraryContext";
@@ -27,6 +28,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)"   options={{ headerShown: false }} />
+      <Stack.Screen name="compare"  options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -56,6 +58,7 @@ export default function RootLayout() {
               <AuthProvider>
                 <TempoProvider>
                   <SwingLibraryProvider>
+                    <CloudSyncManager />
                     <RootLayoutNav />
                   </SwingLibraryProvider>
                 </TempoProvider>

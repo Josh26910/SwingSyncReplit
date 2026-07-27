@@ -25,7 +25,8 @@ import type {
   ErrorResponse,
   HealthStatus,
   LoginRequest,
-  SignupRequest
+  SignupRequest,
+  SyncPayload
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -349,4 +350,75 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getSyncUrl = () => {
+
+
+
+
+  return `/api/sync`
+}
+
+/**
+ * Local-first sync: the client sends its current local snapshot, the server upserts it (sessions merged by max duration/swings per day, swing records deduped by id) and returns the full merged dataset for this account. The client replaces its local storage with the response.
+ * @summary Push local practice sessions/swing records, get back the merged authoritative set
+ */
+export const sync = async (syncPayload: SyncPayload, options?: RequestInit): Promise<SyncPayload> => {
+
+  return customFetch<SyncPayload>(getSyncUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(syncPayload)
+  }
+);}
+
+
+
+
+export const getSyncMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncPayload>}, TContext> => {
+
+const mutationKey = ['sync'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sync>>, {data: BodyType<SyncPayload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sync(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncMutationResult = NonNullable<Awaited<ReturnType<typeof sync>>>
+    export type SyncMutationBody = BodyType<SyncPayload>
+    export type SyncMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Push local practice sessions/swing records, get back the merged authoritative set
+ */
+export const useSync = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sync>>,
+        TError,
+        {data: BodyType<SyncPayload>},
+        TContext
+      > => {
+      return useMutation(getSyncMutationOptions(options));
+    }
 
