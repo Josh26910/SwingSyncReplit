@@ -19,6 +19,8 @@ export interface Swing {
   golferName?: string;
   /** Club/shot type this swing was tagged with, for per-club tempo stats. */
   club?: ShotCategory;
+  /** Local frame-capture thumbnail (native only — see utils/thumbnails.ts). */
+  thumbnailUri?: string;
 }
 
 export type SwingOrigin = "mine" | "pro";

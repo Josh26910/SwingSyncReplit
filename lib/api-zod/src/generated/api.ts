@@ -68,3 +68,48 @@ export const GetCurrentUserResponse = zod.object({
 })
 
 
+/**
+ * Local-first sync: the client sends its current local snapshot, the server upserts it (sessions merged by max duration/swings per day, swing records deduped by id) and returns the full merged dataset for this account. The client replaces its local storage with the response.
+ * @summary Push local practice sessions/swing records, get back the merged authoritative set
+ */
+export const SyncBody = zod.object({
+  "sessions": zod.array(zod.object({
+  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
+  "duration": zod.number().describe('Seconds practiced that day'),
+  "swings": zod.number().optional().describe('Swings analyzed that day')
+})),
+  "swingRecords": zod.array(zod.object({
+  "id": zod.string().describe('Client-generated id, stable across sync'),
+  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
+  "timestamp": zod.number().describe('Epoch milliseconds'),
+  "swingId": zod.string(),
+  "origin": zod.enum(['mine', 'pro']),
+  "golferName": zod.string(),
+  "gameMode": zod.enum(['long', 'short']),
+  "club": zod.string().nullable(),
+  "ratio": zod.number(),
+  "accuracy": zod.number()
+}))
+})
+
+export const SyncResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
+  "duration": zod.number().describe('Seconds practiced that day'),
+  "swings": zod.number().optional().describe('Swings analyzed that day')
+})),
+  "swingRecords": zod.array(zod.object({
+  "id": zod.string().describe('Client-generated id, stable across sync'),
+  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
+  "timestamp": zod.number().describe('Epoch milliseconds'),
+  "swingId": zod.string(),
+  "origin": zod.enum(['mine', 'pro']),
+  "golferName": zod.string(),
+  "gameMode": zod.enum(['long', 'short']),
+  "club": zod.string().nullable(),
+  "ratio": zod.number(),
+  "accuracy": zod.number()
+}))
+})
+
+

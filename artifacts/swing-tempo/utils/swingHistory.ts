@@ -19,6 +19,8 @@ export interface SwingRecord {
   club: ShotCategory | null;
   ratio: number;
   accuracy: number;
+  /** Local frame-capture thumbnail (native only), null if unavailable. */
+  thumbnailUri?: string | null;
 }
 
 export async function getSwingRecords(): Promise<SwingRecord[]> {
@@ -30,7 +32,7 @@ export async function getSwingRecords(): Promise<SwingRecord[]> {
   }
 }
 
-async function saveSwingRecords(records: SwingRecord[]): Promise<void> {
+export async function saveSwingRecords(records: SwingRecord[]): Promise<void> {
   try {
     await AsyncStorage.setItem(RECORDS_KEY, JSON.stringify(records));
   } catch {

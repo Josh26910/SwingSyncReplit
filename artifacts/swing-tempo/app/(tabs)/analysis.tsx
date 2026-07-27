@@ -3,8 +3,10 @@ import { Video, ResizeMode } from "expo-av";
 import type { AVPlaybackStatus } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -33,6 +35,7 @@ import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
 import { incrementSwingsAnalyzed } from "@/utils/sessions";
 import { computeSwingAnalysis } from "@/utils/swingAnalysis";
 import { addSwingRecord } from "@/utils/swingHistory";
+import { generateThumbnail } from "@/utils/thumbnails";
 
 const FPS = 30;
 const MS_PER_FRAME = 1000 / FPS;
@@ -139,14 +142,18 @@ export default function AnalysisScreen() {
     });
     if (!result.canceled && result.assets[0]) {
       const origin = activeOrigin ?? "mine";
+      const uri = result.assets[0].uri;
       const newSwing: Swing = {
         id:      Date.now().toString(),
-        uri:     result.assets[0].uri,
+        uri,
         name:    `Swing ${Date.now()}`,
         markers: EMPTY_MARKERS,
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);
+      generateThumbnail(uri).then((thumbnailUri) => {
+        if (thumbnailUri) updateSwing(origin, newSwing.id, { thumbnailUri });
+      });
     }
   };
 
@@ -194,6 +201,7 @@ export default function AnalysisScreen() {
       club: activeSwing.club ?? null,
       ratio: analysis.ratio,
       accuracy: analysis.accuracy,
+      thumbnailUri: activeSwing.thumbnailUri ?? null,
     });
   };
 
@@ -350,9 +358,35 @@ export default function AnalysisScreen() {
     await videoRef.current?.setPositionAsync(0);
   };
 
-  // Export is a stub for now: it runs the same in-app preview as the Preview
-  // button until real video-file export (server-side compositing) is built.
-  const handleExport = startPreview;
+  // v1: share the original clip via the OS share sheet. Burning the tempo
+  // overlay/watermark into an actual re-encoded video file needs a native
+  // video-processing toolchain (ffmpeg-kit or similar) that Expo Go can't
+  // load — revisit once the app has a custom dev client.
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExport = async () => {
+    if (!activeSwing || !analysis) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === "web") {
+      Alert.alert("Not Available on Web", "Sharing isn't supported in the web preview — try this on your phone.");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert("Not Available", "Sharing isn't available on this device.");
+        return;
+      }
+      await Sharing.shareAsync(activeSwing.uri, {
+        dialogTitle: "Share Your Swing",
+        mimeType: "video/mp4",
+      });
+    } catch (err) {
+      Alert.alert("Export Failed", err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const isMarking = !!videoUri && !marksConfirmed && previewPass === 0;
   const isFullscreen = previewPass > 0 || isMarking;
@@ -721,11 +755,17 @@ export default function AnalysisScreen() {
                 <Text style={styles.actionBtnLabel}>Preview</Text>
               </Pressable>
               <Pressable
-                style={[styles.actionBtn, styles.actionBtnSecondary, !analysis && styles.actionBtnDim]}
-                onPress={analysis ? handleExport : undefined}
+                style={[styles.actionBtn, styles.actionBtnSecondary, (!analysis || isExporting) && styles.actionBtnDim]}
+                onPress={analysis && !isExporting ? handleExport : undefined}
               >
-                <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
-                <Text style={[styles.actionBtnLabel, { color: BLUE }]}>Export</Text>
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={BLUE} style={{ marginRight: 8 }} />
+                ) : (
+                  <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
+                )}
+                <Text style={[styles.actionBtnLabel, { color: BLUE }]}>
+                  {isExporting ? "Sharing..." : "Export"}
+                </Text>
               </Pressable>
             </View>
 

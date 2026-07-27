@@ -13,6 +13,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { CloudSyncManager } from "@/components/CloudSyncManager";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { SwingLibraryProvider } from "@/context/SwingLibraryContext";
@@ -57,6 +58,7 @@ export default function RootLayout() {
               <AuthProvider>
                 <TempoProvider>
                   <SwingLibraryProvider>
+                    <CloudSyncManager />
                     <RootLayoutNav />
                   </SwingLibraryProvider>
                 </TempoProvider>

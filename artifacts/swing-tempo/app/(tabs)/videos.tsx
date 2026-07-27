@@ -8,6 +8,7 @@
 
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -30,6 +31,7 @@ import {
   type SwingOrigin,
 } from "@/context/SwingLibraryContext";
 import { TEMPO_PLAYERS } from "@/data/tempoPlayers";
+import { generateThumbnail } from "@/utils/thumbnails";
 
 const BLUE   = "#1A8CFF";
 const RED    = "#FF3B30";
@@ -51,7 +53,7 @@ interface CompareSelection {
 
 export default function VideosScreen() {
   const insets = useSafeAreaInsets();
-  const { swings, proSwings, addSwing, setActive } = useSwingLibrary();
+  const { swings, proSwings, addSwing, updateSwing, setActive } = useSwingLibrary();
 
   const [tab, setTab] = useState<"pro" | "mine">("pro");
   const [compareMode, setCompareMode] = useState(false);
@@ -114,9 +116,12 @@ export default function VideosScreen() {
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);
+      generateThumbnail(asset.uri).then((thumbnailUri) => {
+        if (thumbnailUri) updateSwing(origin, newSwing.id, { thumbnailUri });
+      });
       router.push("/(tabs)/analysis");
     },
-    [swings, proSwings, addSwing, setActive],
+    [swings, proSwings, addSwing, setActive, updateSwing],
   );
 
   const openSwing = (origin: SwingOrigin, swing: Swing) => {
@@ -140,7 +145,11 @@ export default function VideosScreen() {
         onPress={() => openSwing(origin, swing)}
       >
         <View style={styles.swingThumb}>
-          <Feather name="video" size={24} color="#333" />
+          {swing.thumbnailUri ? (
+            <Image source={{ uri: swing.thumbnailUri }} style={styles.swingThumbImage} contentFit="cover" />
+          ) : (
+            <Feather name="video" size={24} color="#333" />
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.swingName}>{swing.name}</Text>
@@ -327,7 +336,8 @@ const styles = StyleSheet.create({
   /* ── Swing card ─────────────── */
   swingCard:   { flexDirection: "row", alignItems: "center", backgroundColor: "#0D0D0D", borderRadius: 14, borderWidth: 1, borderColor: "#1A1A1A", padding: 12, gap: 12 },
   swingCardSelected: { borderColor: BLUE },
-  swingThumb:  { width: 56, height: 56, borderRadius: 10, backgroundColor: "#111", alignItems: "center", justifyContent: "center" },
+  swingThumb:  { width: 56, height: 56, borderRadius: 10, backgroundColor: "#111", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  swingThumbImage: { width: "100%", height: "100%" },
   swingName:   { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF", marginBottom: 6 },
   swingBadges: { flexDirection: "row", gap: 6 },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },

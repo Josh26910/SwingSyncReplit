@@ -36,3 +36,49 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface PracticeSessionDto {
+  /** ISO date, YYYY-MM-DD */
+  date: string;
+  /** Seconds practiced that day */
+  duration: number;
+  /** Swings analyzed that day */
+  swings?: number;
+}
+
+export type SwingRecordDtoOrigin = typeof SwingRecordDtoOrigin[keyof typeof SwingRecordDtoOrigin];
+
+
+export const SwingRecordDtoOrigin = {
+  mine: 'mine',
+  pro: 'pro',
+} as const;
+
+export type SwingRecordDtoGameMode = typeof SwingRecordDtoGameMode[keyof typeof SwingRecordDtoGameMode];
+
+
+export const SwingRecordDtoGameMode = {
+  long: 'long',
+  short: 'short',
+} as const;
+
+export interface SwingRecordDto {
+  /** Client-generated id, stable across sync */
+  id: string;
+  /** ISO date, YYYY-MM-DD */
+  date: string;
+  /** Epoch milliseconds */
+  timestamp: number;
+  swingId: string;
+  origin: SwingRecordDtoOrigin;
+  golferName: string;
+  gameMode: SwingRecordDtoGameMode;
+  club: string | null;
+  ratio: number;
+  accuracy: number;
+}
+
+export interface SyncPayload {
+  sessions: PracticeSessionDto[];
+  swingRecords: SwingRecordDto[];
+}
+

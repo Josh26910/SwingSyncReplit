@@ -1,5 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -470,7 +471,11 @@ export default function ProfileScreen() {
                   {recentRecords.map((r) => (
                     <Pressable key={r.id} style={styles.archiveCard} onPress={() => openRecordedSwing(r)}>
                       <View style={styles.archiveThumb}>
-                        <Feather name="video" size={18} color="#333" />
+                        {r.thumbnailUri ? (
+                          <Image source={{ uri: r.thumbnailUri }} style={styles.archiveThumbImage} contentFit="cover" />
+                        ) : (
+                          <Feather name="video" size={18} color="#333" />
+                        )}
                       </View>
                       <Text style={styles.archiveRatio}>{r.ratio.toFixed(2)}:1</Text>
                       <Text style={styles.archiveDate}>{formatDateLabel(r.date)}</Text>
@@ -927,7 +932,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
+    overflow: "hidden",
   },
+  archiveThumbImage: { width: "100%", height: "100%" },
   archiveRatio: { fontSize: 13, color: "#FFFFFF", fontFamily: "Inter_700Bold" },
   archiveDate: { fontSize: 9, color: "#555555", fontFamily: "Inter_400Regular" },
 

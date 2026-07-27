@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: auth
     description: Account creation and authentication
+  - name: sync
+    description: Local-first sync of practice sessions and swing history
 paths:
   /healthz:
     get:
@@ -94,6 +96,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /sync:
+    post:
+      operationId: sync
+      tags: [sync]
+      summary: Push local practice sessions/swing records, get back the merged authoritative set
+      description: >-
+        Local-first sync: the client sends its current local snapshot, the
+        server upserts it (sessions merged by max duration/swings per day,
+        swing records deduped by id) and returns the full merged dataset for
+        this account. The client replaces its local storage with the
+        response.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncPayload"
+      responses:
+        "200":
+          description: Merged sync state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncPayload"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -165,3 +199,73 @@ components:
           type: string
       required:
         - error
+    PracticeSessionDto:
+      type: object
+      properties:
+        date:
+          type: string
+          description: ISO date, YYYY-MM-DD
+        duration:
+          type: integer
+          description: Seconds practiced that day
+        swings:
+          type: integer
+          description: Swings analyzed that day
+      required:
+        - date
+        - duration
+    SwingRecordDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Client-generated id, stable across sync
+        date:
+          type: string
+          description: ISO date, YYYY-MM-DD
+        timestamp:
+          type: integer
+          format: int64
+          description: Epoch milliseconds
+        swingId:
+          type: string
+        origin:
+          type: string
+          enum: [mine, pro]
+        golferName:
+          type: string
+        gameMode:
+          type: string
+          enum: [long, short]
+        club:
+          type: string
+          nullable: true
+        ratio:
+          type: number
+        accuracy:
+          type: integer
+      required:
+        - id
+        - date
+        - timestamp
+        - swingId
+        - origin
+        - golferName
+        - gameMode
+        - club
+        - ratio
+        - accuracy
+    SyncPayload:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PracticeSessionDto"
+        swingRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwingRecordDto"
+      required:
+        - sessions
+        - swingRecords
