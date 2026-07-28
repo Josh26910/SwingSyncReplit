@@ -48,6 +48,8 @@ const CLUB_TAGS: ShotCategory[] = ["tee", "approach", "shortgame", "putting"];
 /** How close to the impact marker (ms of video time) triggers the slow-motion zoom. */
 const IMPACT_ZOOM_WINDOW_MS = 350;
 const IMPACT_ZOOM_SCALE = 1.35;
+/** How long the slow-motion pass freezes on the takeaway frame before resuming. */
+const TAKEAWAY_PAUSE_MS = 500;
 
 const PHASE_WORDS: Record<"takeaway" | "top" | "impact", string> = {
   takeaway: "TAKEAWAY",
@@ -93,6 +95,12 @@ export default function AnalysisScreen() {
   });
   const impactZoomAnim = useRef(new Animated.Value(1)).current;
   const zoomedRef = useRef(false);
+  // Last known (position, wall-clock-time, rate) sample from the video's own
+  // status callback. The bridge only reports position every ~33ms, which is
+  // what read as beep lag; interpolating position between samples lets the
+  // rAF loop below detect a marker crossing within a frame or two of it
+  // actually happening instead of waiting for the next bridge update.
+  const interpRef = useRef({ pos: 0, ts: Date.now(), rate: 1 });
 
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
@@ -246,35 +254,76 @@ export default function AnalysisScreen() {
     ? Math.min(Math.max(dockedVideoWidth / videoAspect, 180), 340)
     : 240;
 
+  // Fires the takeaway/top/impact beep+haptic+caption the instant `pos`
+  // crosses each marker. Called both from the authoritative bridge callback
+  // and from the higher-frequency interpolation loop below, so whichever
+  // reaches the marker first wins — `pr.fired` guards against double-firing.
+  const fireMarkerEvents = (pos: number) => {
+    const pr = previewRef.current;
+    if (!pr.active) return;
+
+    if (marks.takeaway !== null && !pr.fired.has("takeaway") && pos >= marks.takeaway) {
+      pr.fired.add("takeaway");
+      playStart(audioMode);
+      hapticTakeaway();
+      setPreviewWord(PHASE_WORDS.takeaway);
+      // Slow-motion pass: freeze on the takeaway frame exactly as the beep
+      // fires, then resume — play → reach takeaway → pause + beep → continue.
+      if (pr.pass === 3) {
+        videoRef.current?.pauseAsync();
+        setTimeout(() => {
+          if (previewRef.current.active && previewRef.current.pass === 3) {
+            videoRef.current?.playAsync();
+          }
+        }, TAKEAWAY_PAUSE_MS);
+      }
+    }
+    if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
+      pr.fired.add("top");
+      playTop(audioMode);
+      hapticTop();
+      setPreviewWord(PHASE_WORDS.top);
+    }
+    if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
+      pr.fired.add("impact");
+      playImpact(audioMode);
+      hapticImpact();
+      setPreviewWord(PHASE_WORDS.impact);
+    }
+  };
+
+  // Drives fireMarkerEvents off an interpolated position between bridge
+  // updates (see interpRef above), at animation-frame rate rather than the
+  // ~33ms bridge poll rate.
+  useEffect(() => {
+    let raf: ReturnType<typeof requestAnimationFrame>;
+    const loop = () => {
+      const pr = previewRef.current;
+      if (pr.active) {
+        const { pos, ts, rate } = interpRef.current;
+        const estPos = pos + (Date.now() - ts) * rate;
+        fireMarkerEvents(estPos);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marks.takeaway, marks.top, marks.impact, audioMode]);
+
   const handleStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
     const pos = status.positionMillis ?? 0;
     setCurrentMs(pos);
     if (status.durationMillis) setDurationMs(status.durationMillis);
     setIsPlaying(status.isPlaying);
+    interpRef.current = { pos, ts: Date.now(), rate: status.isPlaying ? (status.rate || 1) : 0 };
 
     const pr = previewRef.current;
     const end = status.durationMillis ?? durationMs;
 
     if (pr.active) {
-      if (marks.takeaway !== null && !pr.fired.has("takeaway") && pos >= marks.takeaway) {
-        pr.fired.add("takeaway");
-        playStart(audioMode);
-        hapticTakeaway();
-        setPreviewWord(PHASE_WORDS.takeaway);
-      }
-      if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
-        pr.fired.add("top");
-        playTop(audioMode);
-        hapticTop();
-        setPreviewWord(PHASE_WORDS.top);
-      }
-      if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
-        pr.fired.add("impact");
-        playImpact(audioMode);
-        hapticImpact();
-        setPreviewWord(PHASE_WORDS.impact);
-      }
+      fireMarkerEvents(pos);
 
       // Slow-motion impact zoom: only during the dedicated slow-mo pass
       // (pass 3), ease the video in/out of a tight zoom around the impact

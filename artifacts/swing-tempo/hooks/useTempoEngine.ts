@@ -22,17 +22,25 @@ export function useTempoEngine() {
 
   useActiveTimeTracker(isPlaying);
 
-  const stateRef   = useRef({ running: false, startTime: 0 });
-  const timers     = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const cycleRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const animRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Absolute-time scheduler state: every event's fire time is an offset from
+  // a single epoch, and the tick below re-derives "where we should be right
+  // now" from real elapsed time on every pass. A setTimeout chain re-arms
+  // its next delay relative to whenever the previous callback actually fired,
+  // so JS-thread jitter compounds cycle over cycle; this catches up instead
+  // of drifting, because each tick compares wall-clock time against the
+  // fixed schedule rather than against the previous (possibly late) tick.
+  const engineRef  = useRef({
+    running: false,
+    epoch: 0,
+    cycleDur: 0,
+    lastCycleIndex: -1,
+    fired: new Set<string>(),
+  });
+  const schedulerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopEngine = useCallback(() => {
-    stateRef.current.running = false;
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    if (cycleRef.current) { clearInterval(cycleRef.current); cycleRef.current = null; }
-    if (animRef.current)  { clearInterval(animRef.current);  animRef.current  = null; }
+    engineRef.current.running = false;
+    if (schedulerRef.current) { clearInterval(schedulerRef.current); schedulerRef.current = null; }
     setCurrentPhase("ready");
     setCycleProgress(0);
   }, [setCurrentPhase, setCycleProgress]);
@@ -40,41 +48,48 @@ export function useTempoEngine() {
   const startEngine = useCallback(() => {
     const tempo    = getEffectiveDef(selectedTempo, customTempo);
     const cycleDur = tempo.impactMs + 700;
-    stateRef.current.running = true;
 
-    const runCycle = () => {
-      stateRef.current.startTime = Date.now();
-      setCurrentPhase("start");
-      hapticTakeaway();
-      playStart(audioMode);
+    const events = [
+      { key: "start",  atMs: 0,             phase: "start"  as const, play: playStart,  haptic: hapticTakeaway },
+      { key: "top",    atMs: tempo.topMs,    phase: "top"    as const, play: playTop,    haptic: hapticTop },
+      { key: "impact", atMs: tempo.impactMs, phase: "impact" as const, play: playImpact, haptic: hapticImpact },
+    ];
 
-      const t1 = setTimeout(() => {
-        setCurrentPhase("top");
-        hapticTop();
-        playTop(audioMode);
-      }, tempo.topMs);
-
-      const t2 = setTimeout(() => {
-        setCurrentPhase("impact");
-        hapticImpact();
-        playImpact(audioMode);
-      }, tempo.impactMs);
-
-      timers.current = [t1, t2];
+    engineRef.current = {
+      running: true,
+      epoch: Date.now(),
+      cycleDur,
+      lastCycleIndex: -1,
+      fired: new Set(),
     };
 
-    runCycle();
+    // 10ms ticks (vs. one setTimeout per event) keep worst-case beep lateness
+    // to a single tick instead of a whole dropped/delayed timer callback.
+    schedulerRef.current = setInterval(() => {
+      const eng = engineRef.current;
+      if (!eng.running) return;
 
-    cycleRef.current = setInterval(() => {
-      timers.current.forEach(clearTimeout);
-      runCycle();
-    }, cycleDur);
+      const elapsed     = Date.now() - eng.epoch;
+      const cycleIndex   = Math.floor(elapsed / eng.cycleDur);
+      const cycleElapsed = elapsed - cycleIndex * eng.cycleDur;
 
-    animRef.current = setInterval(() => {
-      if (!stateRef.current.running) return;
-      const elapsed = Date.now() - stateRef.current.startTime;
-      setCycleProgress(Math.min(elapsed / cycleDur, 1));
-    }, 33);
+      if (cycleIndex !== eng.lastCycleIndex) {
+        eng.lastCycleIndex = cycleIndex;
+        eng.fired.clear();
+      }
+
+      setCycleProgress(Math.min(cycleElapsed / eng.cycleDur, 1));
+
+      for (const ev of events) {
+        if (eng.fired.has(ev.key)) continue;
+        if (cycleElapsed >= ev.atMs) {
+          eng.fired.add(ev.key);
+          setCurrentPhase(ev.phase);
+          ev.haptic();
+          ev.play(audioMode);
+        }
+      }
+    }, 10);
   }, [selectedTempo, customTempo, audioMode, setCurrentPhase, setCycleProgress]);
 
   useEffect(() => {
