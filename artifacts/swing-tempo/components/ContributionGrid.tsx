@@ -83,12 +83,21 @@ export function ContributionGrid({
   selectedDate = null,
 }: ContributionGridProps) {
   const grid = React.useMemo(() => buildGrid(sessions, weeks), [sessions, weeks]);
+  const scrollRef = React.useRef<ScrollView>(null);
 
   return (
     <ScrollView
+      ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 4 }}
+      // The grid renders oldest→newest left to right, so it opens scrolled
+      // to the empty, year-old end by default — jump to today's edge
+      // (right) whenever the content settles, including after `sessions`
+      // arrives asynchronously and the grid re-renders wider/narrower.
+      onContentSizeChange={(contentWidth) => {
+        scrollRef.current?.scrollTo({ x: contentWidth, animated: false });
+      }}
     >
       <View>
         {/* Month labels */}
