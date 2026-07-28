@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -211,10 +212,17 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     try {
-      if (mode === "signup") await signUp(email.trim(), password, name.trim() || undefined);
-      else await signIn(email.trim(), password);
+      if (mode === "signup") {
+        await signUp(email.trim(), password, name.trim() || undefined);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Account Created", "Welcome to SwingTempo — your stats will now sync to your account.");
+      } else {
+        await signIn(email.trim(), password);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       setPassword("");
     } catch (err) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         mode === "signup" ? "Couldn't Create Account" : "Couldn't Sign In",
         err instanceof Error ? err.message : "Something went wrong. Please try again."
@@ -666,6 +674,9 @@ export default function ProfileScreen() {
                 onPress={handleAuth}
                 disabled={isLoading}
               >
+                {isLoading && (
+                  <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                )}
                 <Text style={styles.signInLabel}>
                   {isLoading
                     ? mode === "signup" ? "Creating Account..." : "Signing In..."
@@ -1109,6 +1120,7 @@ const styles = StyleSheet.create({
   },
   eyeBtn: { padding: 4 },
   signInBtn: {
+    flexDirection: "row",
     backgroundColor: "#1A8CFF",
     borderRadius: 12,
     height: 52,
