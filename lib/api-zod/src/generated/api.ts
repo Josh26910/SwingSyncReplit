@@ -69,6 +69,39 @@ export const GetCurrentUserResponse = zod.object({
 
 
 /**
+ * @summary Update the current user's display name
+ */
+export const UpdateProfileBody = zod.object({
+  "name": zod.string()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "name": zod.string().nullish()
+})
+
+
+/**
+ * @summary Change the current user's password
+ */
+export const changePasswordBodyNewPasswordMin = 8;
+
+
+
+export const ChangePasswordBody = zod.object({
+  "currentPassword": zod.string(),
+  "newPassword": zod.string().min(changePasswordBodyNewPasswordMin)
+})
+
+export const ChangePasswordResponse = zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "name": zod.string().nullish()
+})
+
+
+/**
  * Local-first sync: the client sends its current local snapshot, the server upserts it (sessions merged by max duration/swings per day, swing records deduped by id) and returns the full merged dataset for this account. The client replaces its local storage with the response.
  * @summary Push local practice sessions/swing records, get back the merged authoritative set
  */

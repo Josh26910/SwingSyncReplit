@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -65,6 +66,8 @@ interface SettingItem {
   destructive?: boolean;
 }
 
+const APP_VERSION = "1.0.0";
+
 const SETTINGS: SettingItem[] = [
   {
     id: "edit-profile",
@@ -73,22 +76,9 @@ const SETTINGS: SettingItem[] = [
     iconFamily: "feather",
   },
   {
-    id: "handicap",
-    label: "Handicap Index",
-    icon: "golf",
-    iconFamily: "mci",
-    value: "--",
-  },
-  {
     id: "security",
     label: "Security & Password",
     icon: "lock",
-    iconFamily: "feather",
-  },
-  {
-    id: "notifications",
-    label: "Notifications",
-    icon: "bell",
     iconFamily: "feather",
   },
   {
@@ -96,7 +86,7 @@ const SETTINGS: SettingItem[] = [
     label: "App Info & Version",
     icon: "info",
     iconFamily: "feather",
-    value: "v1.0.0",
+    value: `v${APP_VERSION}`,
   },
   {
     id: "logout",
@@ -109,7 +99,7 @@ const SETTINGS: SettingItem[] = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signUp, signIn, signOut } = useAuth();
+  const { user, signUp, signIn, signOut, updateName, changePassword } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -124,6 +114,13 @@ export default function ProfileScreen() {
   const [goalInput, setGoalInput] = useState("");
   const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [activeModal, setActiveModal] = useState<"edit-profile" | "security" | null>(null);
+  const [editNameInput, setEditNameInput] = useState("");
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [modalSaving, setModalSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const { findSwing, setActive } = useSwingLibrary();
 
@@ -250,6 +247,14 @@ export default function ProfileScreen() {
     }
   };
 
+  const closeModal = () => {
+    setActiveModal(null);
+    setModalError(null);
+    setModalSaving(false);
+    setCurrentPasswordInput("");
+    setNewPasswordInput("");
+  };
+
   const handleSettingPress = (item: SettingItem) => {
     Haptics.selectionAsync();
     if (item.id === "logout") {
@@ -261,6 +266,52 @@ export default function ProfileScreen() {
           onPress: () => signOut(),
         },
       ]);
+    } else if (item.id === "edit-profile") {
+      setModalError(null);
+      setEditNameInput(user?.name ?? "");
+      setActiveModal("edit-profile");
+    } else if (item.id === "security") {
+      setModalError(null);
+      setActiveModal("security");
+    } else if (item.id === "app-info") {
+      Alert.alert("SwingTempo", `Version ${APP_VERSION}`);
+    }
+  };
+
+  const saveEditProfile = async () => {
+    if (!editNameInput.trim()) {
+      setModalError("Enter a name.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await updateName(editNameInput.trim());
+      closeModal();
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't update profile.");
+    }
+  };
+
+  const saveSecurity = async () => {
+    if (!currentPasswordInput || !newPasswordInput) {
+      setModalError("Enter your current and new password.");
+      return;
+    }
+    if (newPasswordInput.length < 8) {
+      setModalError("New password must be at least 8 characters.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await changePassword(currentPasswordInput, newPasswordInput);
+      closeModal();
+      showAuthBanner("success", "Password changed.");
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't change password.");
     }
   };
 
@@ -753,6 +804,95 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={activeModal === "edit-profile"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Profile</Text>
+            <Text style={styles.modalLabel}>Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editNameInput}
+              onChangeText={setEditNameInput}
+              placeholder="Your name"
+              placeholderTextColor="#333333"
+              autoCapitalize="words"
+              autoFocus
+            />
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={saveEditProfile}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeModal === "security"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Security & Password</Text>
+            <Text style={styles.modalLabel}>Current password</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={currentPasswordInput}
+              onChangeText={setCurrentPasswordInput}
+              placeholder="Current password"
+              placeholderTextColor="#333333"
+              secureTextEntry
+              autoFocus
+            />
+            <Text style={styles.modalLabel}>New password</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newPasswordInput}
+              onChangeText={setNewPasswordInput}
+              placeholder="At least 8 characters"
+              placeholderTextColor="#333333"
+              secureTextEntry
+            />
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={saveSecurity}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -1218,5 +1358,85 @@ const styles = StyleSheet.create({
     color: "#888888",
     fontWeight: "500",
     fontFamily: "Inter_500Medium",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#000000AA",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#0D0D0D",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+    padding: 20,
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontFamily: "Inter_700Bold",
+    marginBottom: 8,
+  },
+  modalLabel: {
+    fontSize: 11,
+    color: "#555555",
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  modalInput: {
+    backgroundColor: "#111111",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+    paddingHorizontal: 12,
+    height: 44,
+    color: "#FFFFFF",
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+  },
+  modalErrorText: {
+    color: "#FF3B30",
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 4,
+  },
+  modalBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#222222",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelLabel: {
+    color: "#888888",
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+  modalSaveBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#1A8CFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSaveLabel: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
   },
 });

@@ -8,6 +8,7 @@
 
 export * from './authResponse';
 export * from './authUser';
+export * from './changePasswordRequest';
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './loginRequest';
@@ -17,3 +18,4 @@ export * from './swingRecordDto';
 export * from './swingRecordDtoGameMode';
 export * from './swingRecordDtoOrigin';
 export * from './syncPayload';
+export * from './updateProfileRequest';
