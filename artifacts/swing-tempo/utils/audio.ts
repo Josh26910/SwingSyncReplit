@@ -169,12 +169,7 @@ function webPiano(freq: number, dur: number) {
    Native: cache Audio.Sound objects so playback is instant
 ─────────────────────────────────────────────────────────────────── */
 
-type SoundSlot = {
-  sound: Audio.Sound | null;
-  loading: boolean;
-};
-
-const cache: Record<string, SoundSlot> = {};
+const cache: Record<string, Promise<Audio.Sound | null>> = {};
 let audioModeSet = false;
 
 async function ensureAudioMode() {
@@ -191,7 +186,11 @@ async function ensureAudioMode() {
   } catch { /* ignore */ }
 }
 
-async function loadNativeSound(
+// Loads are memoized by promise (not by a finished sound object) so a beep
+// that fires while a preload is still in flight awaits the same load instead
+// of silently dropping — that race was why the very first beep after app
+// launch could go missing while the rest fired late and bunched together.
+function loadNativeSound(
   key: string,
   freq: number,
   dur: number,
@@ -199,25 +198,27 @@ async function loadNativeSound(
   wave: "sine" | "triangle" = "sine",
   adsr?: { a: number; d: number; s: number; r: number },
 ): Promise<Audio.Sound | null> {
-  if (cache[key]?.sound) return cache[key].sound;
-  if (cache[key]?.loading) return null;
+  if (key in cache) return cache[key];
 
-  cache[key] = { sound: null, loading: true };
-  try {
-    await ensureAudioMode();
-    const wav  = buildWav(freq, dur, gain, wave, adsr ?? { a: 0.01, d: 0.15, s: 0.3, r: 0.3 });
-    const b64  = toBase64(wav);
-    const path = `${FileSystem.cacheDirectory}st_${key}.wav`;
-    await FileSystem.writeAsStringAsync(path, b64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const { sound } = await Audio.Sound.createAsync({ uri: path });
-    cache[key] = { sound, loading: false };
-    return sound;
-  } catch {
-    cache[key] = { sound: null, loading: false };
-    return null;
-  }
+  const promise = (async () => {
+    try {
+      await ensureAudioMode();
+      const wav  = buildWav(freq, dur, gain, wave, adsr ?? { a: 0.01, d: 0.15, s: 0.3, r: 0.3 });
+      const b64  = toBase64(wav);
+      const path = `${FileSystem.cacheDirectory}st_${key}.wav`;
+      await FileSystem.writeAsStringAsync(path, b64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const { sound } = await Audio.Sound.createAsync({ uri: path });
+      return sound;
+    } catch {
+      delete cache[key];
+      return null;
+    }
+  })();
+
+  cache[key] = promise;
+  return promise;
 }
 
 async function playNativeSound(

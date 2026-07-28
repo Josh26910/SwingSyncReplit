@@ -466,12 +466,14 @@ export default function AnalysisScreen() {
             ]}
           >
           <Video
+            key={activeSwing?.id ?? "none"}
             ref={videoRef}
             source={{ uri: videoUri }}
             style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
+            onLoad={() => videoRef.current?.setPositionAsync(0)}
             onPlaybackStatusUpdate={handleStatus}
             onReadyForDisplay={handleReadyForDisplay}
           />
@@ -513,7 +515,7 @@ export default function AnalysisScreen() {
                 </Text>
               </View>
             )}
-            {golferName !== "" && (
+            {previewPass > 0 && golferName !== "" && (
               <View style={styles.nameCaption}>
                 <Text style={styles.nameCaptionText}>{toTitleCase(golferName)}</Text>
               </View>
@@ -1233,7 +1235,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontFamily: "Inter_700Bold",
   },
-  accuracyRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  accuracyRow: { flexDirection: "row", alignItems: "center", gap: 18 },
   scoreCircle: {
     width: 80,
     height: 80,
@@ -1259,9 +1261,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    rowGap: 14,
+    columnGap: 10,
   },
-  statItem: { width: "47%", gap: 3 },
+  statItem: { width: "47%", gap: 5 },
   statLabel: {
     fontSize: 8,
     color: "#444444",
@@ -1274,6 +1277,7 @@ const styles = StyleSheet.create({
     color: "#CCCCCC",
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
+    lineHeight: 16,
   },
   hintCard: {
     flexDirection: "row",

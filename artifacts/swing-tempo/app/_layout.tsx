@@ -18,8 +18,16 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { SwingLibraryProvider } from "@/context/SwingLibraryContext";
 import { TempoProvider } from "@/context/TempoContext";
+import { preloadSounds } from "@/utils/audio";
 
 SplashScreen.preventAutoHideAsync();
+
+// Warm the beep engine (native: on-disk WAV cache, web: AudioContext) as
+// soon as the app boots, not only once the tempo trainer screen happens to
+// be visited — the analysis screen plays the same cues and shouldn't pay a
+// cold-start latency hit on its very first beep just because the user
+// opened it first.
+preloadSounds();
 
 const queryClient = new QueryClient();
 
