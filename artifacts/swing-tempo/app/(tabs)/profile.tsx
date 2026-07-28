@@ -2,7 +2,7 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -122,8 +122,25 @@ export default function ProfileScreen() {
   const [targetRatios, setTargetRatios] = useState<Record<GameMode, number>>({ long: 3.0, short: 2.0 });
   const [editingGoal, setEditingGoal] = useState<GameMode | null>(null);
   const [goalInput, setGoalInput] = useState("");
+  const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { findSwing, setActive } = useSwingLibrary();
+
+  // Alert.alert() has no implementation on react-native-web — it silently
+  // no-ops there — so account-creation feedback needs a real in-UI banner
+  // to actually be visible in the web preview, not just on native. It's
+  // rendered outside the signed-in/signed-out branches below so it
+  // survives the view swap that happens the instant `user` becomes truthy.
+  const showAuthBanner = (type: "success" | "error", message: string) => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setAuthBanner({ type, message });
+    bannerTimer.current = setTimeout(() => setAuthBanner(null), 4000);
+  };
+
+  useEffect(() => {
+    return () => { if (bannerTimer.current) clearTimeout(bannerTimer.current); };
+  }, []);
 
   // Daily Progress tracker: local practice-time + swings-analyzed data,
   // recorded by useActiveTimeTracker while a tempo plays or a video is
@@ -206,7 +223,7 @@ export default function ProfileScreen() {
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Missing Fields", "Please enter your email and password.");
+      showAuthBanner("error", "Please enter your email and password.");
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -215,17 +232,18 @@ export default function ProfileScreen() {
       if (mode === "signup") {
         await signUp(email.trim(), password, name.trim() || undefined);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Account Created", "Welcome to SwingTempo — your stats will now sync to your account.");
+        showAuthBanner("success", "Account created — welcome to SwingTempo!");
       } else {
         await signIn(email.trim(), password);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showAuthBanner("success", "Signed in.");
       }
       setPassword("");
     } catch (err) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(
-        mode === "signup" ? "Couldn't Create Account" : "Couldn't Sign In",
-        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      showAuthBanner(
+        "error",
+        err instanceof Error ? err.message : mode === "signup" ? "Couldn't create account." : "Couldn't sign in."
       );
     } finally {
       setIsLoading(false);
@@ -281,6 +299,22 @@ export default function ProfileScreen() {
             {user ? "SwingTempo Pro" : "Sign in to sync your data"}
           </Text>
         </View>
+
+        {authBanner && (
+          <View
+            style={[
+              styles.authBanner,
+              authBanner.type === "success" ? styles.authBannerSuccess : styles.authBannerError,
+            ]}
+          >
+            <Feather
+              name={authBanner.type === "success" ? "check-circle" : "alert-circle"}
+              size={16}
+              color={authBanner.type === "success" ? "#30D158" : "#FF3B30"}
+            />
+            <Text style={styles.authBannerText}>{authBanner.message}</Text>
+          </View>
+        )}
 
         {user ? (
           <View style={styles.progressSection}>
@@ -742,6 +776,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     fontFamily: "Inter_400Regular",
   },
+  authBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  authBannerSuccess: { backgroundColor: "#30D15818", borderColor: "#30D15855" },
+  authBannerError: { backgroundColor: "#FF3B3018", borderColor: "#FF3B3055" },
+  authBannerText: { flex: 1, fontSize: 13, color: "#FFFFFF", fontFamily: "Inter_500Medium" },
   progressSection: { marginBottom: 24 },
   progressCard: {
     backgroundColor: "#0D0D0D",
