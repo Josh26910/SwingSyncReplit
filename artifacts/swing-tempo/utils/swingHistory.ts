@@ -5,7 +5,6 @@ import type { SwingOrigin } from "@/context/SwingLibraryContext";
 import type { ShotCategory } from "@/data/tempoPlayers";
 
 const RECORDS_KEY = "swingTempo:swingHistory";
-const TARGET_RATIO_KEY_PREFIX = "swingTempo:targetRatio:";
 const MAX_RECORDS = 500;
 
 export interface SwingRecord {
@@ -131,21 +130,3 @@ export function computeClubBreakdown(records: SwingRecord[]): ClubBreakdown[] {
     .sort((a, b) => b.count - a.count);
 }
 
-export async function getTargetRatio(gameMode: GameMode): Promise<number> {
-  const fallback = gameMode === "long" ? 3.0 : 2.0;
-  try {
-    const raw = await AsyncStorage.getItem(TARGET_RATIO_KEY_PREFIX + gameMode);
-    const parsed = raw ? parseFloat(raw) : NaN;
-    return Number.isFinite(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-export async function setTargetRatio(gameMode: GameMode, value: number): Promise<void> {
-  try {
-    await AsyncStorage.setItem(TARGET_RATIO_KEY_PREFIX + gameMode, String(value));
-  } catch {
-    /* ignore */
-  }
-}
