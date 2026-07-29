@@ -152,6 +152,9 @@ interface TempoContextValue {
   /** Non-null when a player tempo has been loaded via "Start Tempo" */
   customTempo: PlayerTempo | null;
   setCustomTempo: (t: PlayerTempo | null) => void;
+  /** Whether the Analysis screen's slow-motion pass zooms in around impact. */
+  zoomEnabled: boolean;
+  setZoomEnabled: (v: boolean) => void;
 }
 
 const TempoContext = createContext<TempoContextValue | null>(null);
@@ -164,6 +167,7 @@ export function TempoProvider({ children }: { children: React.ReactNode }) {
   const [currentPhase,   setCurrentPhase]    = useState<SwingPhase>("ready");
   const [cycleProgress,  setCycleProgress]   = useState(0);
   const [customTempo,    setCustomTempo]     = useState<PlayerTempo | null>(null);
+  const [zoomEnabled,    setZoomEnabled]     = useState(true);
 
   return (
     <TempoContext.Provider
@@ -175,6 +179,7 @@ export function TempoProvider({ children }: { children: React.ReactNode }) {
         currentPhase,   setCurrentPhase,
         cycleProgress,  setCycleProgress,
         customTempo,    setCustomTempo,
+        zoomEnabled,    setZoomEnabled,
       }}
     >
       {children}
