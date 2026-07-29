@@ -253,9 +253,9 @@ export default function AnalysisScreen() {
   // Docked (non-fullscreen) mode sizes the video box to the source's real
   // aspect ratio instead of a fixed height, so there's no dead letterbox
   // space for the frame counter/name caption/watermark to float in.
-  const handleReadyForDisplay = (event: { naturalSize: { width: number; height: number } }) => {
-    const { width, height } = event.naturalSize;
-    if (width > 0 && height > 0) setVideoAspect(width / height);
+  const handleReadyForDisplay = (event: { naturalSize?: { width: number; height: number } }) => {
+    const { width, height } = event.naturalSize ?? {};
+    if (width && height && width > 0 && height > 0) setVideoAspect(width / height);
   };
 
   const dockedVideoWidth = screenWidth - 40; // matches videoWrapper's marginHorizontal:20
