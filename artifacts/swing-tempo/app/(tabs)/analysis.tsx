@@ -29,7 +29,7 @@ import {
   type Swing,
 } from "@/context/SwingLibraryContext";
 import { CATEGORY_LABELS, type ShotCategory } from "@/data/tempoPlayers";
-import { playImpact, playStart, playTop, stopAllAudio } from "@/utils/audio";
+import { playImpact, playStart, playTop, preloadSounds, stopAllAudio } from "@/utils/audio";
 import { hapticImpact, hapticTakeaway, hapticTop } from "@/utils/haptics";
 import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
 import { incrementSwingsAnalyzed } from "@/utils/sessions";
@@ -48,8 +48,8 @@ const CLUB_TAGS: ShotCategory[] = ["tee", "approach", "shortgame", "putting"];
 /** How close to the impact marker (ms of video time) triggers the slow-motion zoom. */
 const IMPACT_ZOOM_WINDOW_MS = 350;
 const IMPACT_ZOOM_SCALE = 1.35;
-/** How long the slow-motion pass freezes on the takeaway frame before resuming. */
-const TAKEAWAY_PAUSE_MS = 500;
+/** How long the slow-motion pass freezes on each marker frame before resuming. */
+const MARKER_PAUSE_MS = 500;
 
 const PHASE_WORDS: Record<"takeaway" | "top" | "impact", string> = {
   takeaway: "TAKEAWAY",
@@ -100,7 +100,14 @@ export default function AnalysisScreen() {
   // what read as beep lag; interpolating position between samples lets the
   // rAF loop below detect a marker crossing within a frame or two of it
   // actually happening instead of waiting for the next bridge update.
-  const interpRef = useRef({ pos: 0, ts: Date.now(), rate: 1 });
+  const interpRef = useRef({ pos: 0, ts: Date.now(), rate: 0 });
+  // Set once our post-load "force seek to 0" call has actually resolved.
+  // Until then, any positionMillis the bridge reports (which on some
+  // devices arrives already a few frames into the clip, before our seek
+  // takes effect) is ignored in favor of a hard 0 — otherwise the frame
+  // counter/beeps can start from that leftover native starting position
+  // instead of a true frame 0.
+  const seekReadyRef = useRef(false);
 
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
@@ -130,6 +137,8 @@ export default function AnalysisScreen() {
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
+    interpRef.current = { pos: 0, ts: Date.now(), rate: 0 };
+    seekReadyRef.current = false;
   }, [activeSwing?.id]);
 
   const pickVideo = async () => {
@@ -258,17 +267,38 @@ export default function AnalysisScreen() {
   // crosses each marker. Called both from the authoritative bridge callback
   // and from the higher-frequency interpolation loop below, so whichever
   // reaches the marker first wins — `pr.fired` guards against double-firing.
-  // Whenever we imperatively seek the player back to 0 (pass start/restart),
-  // interpRef and the currentMs state must be force-reset in the same tick.
-  // Otherwise they keep whatever position was left over from before the seek
-  // (e.g. wherever the user had scrubbed to while setting markers, or the
-  // end-of-clip position from the previous pass) — and since the rAF loop
-  // fires beeps off interpRef, a leftover position that's already past a
-  // marker makes it fire instantly instead of when playback actually gets
-  // there, with the frame counter reading the same stale, too-high number.
-  const resetPlaybackClock = () => {
+  //
+  // Every restart-to-0 (initial preview start, each pass transition, stop)
+  // must go through this single helper. The earlier bug: interpRef/currentMs
+  // were force-reset to 0 in JS, but `seekReadyRef` — which gates whether
+  // handleStatus trusts a bridge-reported position at all — was only ever
+  // flipped false on a brand-new video *load*, never on a preview restart.
+  // So during the real async gap between "we reset state to 0" and "the
+  // setPositionAsync(0) bridge call actually lands", any status update that
+  // arrived in between (reporting wherever the player still physically was —
+  // e.g. frame 22 from the marking scrub, or the end of the previous pass)
+  // sailed straight through and overwrote our reset with that stale number.
+  // Gating seekReadyRef across the whole async span, the same way the
+  // initial-load path already did, closes that race for every restart path.
+  const seekToZeroAndResetClock = async () => {
+    seekReadyRef.current = false;
     interpRef.current = { pos: 0, ts: Date.now(), rate: 0 };
     setCurrentMs(0);
+    await videoRef.current?.setPositionAsync(0);
+    seekReadyRef.current = true;
+  };
+
+  // Slow-motion pass only: freeze on the marker frame exactly as its beep
+  // fires, then resume — play → reach marker → pause + beep → continue.
+  // Applies to all three markers (takeaway, top, impact), not just takeaway.
+  const pauseThenResumeIfSlowMo = () => {
+    if (previewRef.current.pass !== 3) return;
+    videoRef.current?.pauseAsync();
+    setTimeout(() => {
+      if (previewRef.current.active && previewRef.current.pass === 3) {
+        videoRef.current?.playAsync();
+      }
+    }, MARKER_PAUSE_MS);
   };
 
   const fireMarkerEvents = (pos: number) => {
@@ -280,28 +310,21 @@ export default function AnalysisScreen() {
       playStart(audioMode);
       hapticTakeaway();
       setPreviewWord(PHASE_WORDS.takeaway);
-      // Slow-motion pass: freeze on the takeaway frame exactly as the beep
-      // fires, then resume — play → reach takeaway → pause + beep → continue.
-      if (pr.pass === 3) {
-        videoRef.current?.pauseAsync();
-        setTimeout(() => {
-          if (previewRef.current.active && previewRef.current.pass === 3) {
-            videoRef.current?.playAsync();
-          }
-        }, TAKEAWAY_PAUSE_MS);
-      }
+      pauseThenResumeIfSlowMo();
     }
     if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
       pr.fired.add("top");
       playTop(audioMode);
       hapticTop();
       setPreviewWord(PHASE_WORDS.top);
+      pauseThenResumeIfSlowMo();
     }
     if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
       pr.fired.add("impact");
       playImpact(audioMode);
       hapticImpact();
       setPreviewWord(PHASE_WORDS.impact);
+      pauseThenResumeIfSlowMo();
     }
   };
 
@@ -326,7 +349,10 @@ export default function AnalysisScreen() {
 
   const handleStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
-    const pos = status.positionMillis ?? 0;
+    // Until our post-load seek-to-0 has actually resolved, ignore whatever
+    // position the bridge reports — on some devices the first report or two
+    // arrives already a few frames into the clip, before our seek lands.
+    const pos = seekReadyRef.current ? (status.positionMillis ?? 0) : 0;
     setCurrentMs(pos);
     if (status.durationMillis) setDurationMs(status.durationMillis);
     setIsPlaying(status.isPlaying);
@@ -339,15 +365,15 @@ export default function AnalysisScreen() {
       fireMarkerEvents(pos);
 
       // Slow-motion impact zoom: only during the dedicated slow-mo pass
-      // (pass 3), ease the video in/out of a tight zoom around the impact
-      // marker so the moment of contact reads clearly without needing real
-      // subject tracking.
+      // (pass 3), ease into a tight zoom once we enter the impact window and
+      // hold it — the zoom should stay until the pass ends, not ease back
+      // out again once position moves past the marker.
       if (pr.pass === 3 && marks.impact !== null) {
-        const withinZoomWindow = Math.abs(pos - marks.impact) <= IMPACT_ZOOM_WINDOW_MS;
-        if (withinZoomWindow !== zoomedRef.current) {
-          zoomedRef.current = withinZoomWindow;
+        const shouldZoom = pos >= marks.impact - IMPACT_ZOOM_WINDOW_MS;
+        if (shouldZoom && !zoomedRef.current) {
+          zoomedRef.current = true;
           Animated.timing(impactZoomAnim, {
-            toValue: withinZoomWindow ? IMPACT_ZOOM_SCALE : 1,
+            toValue: IMPACT_ZOOM_SCALE,
             duration: 220,
             useNativeDriver: true,
           }).start();
@@ -364,17 +390,17 @@ export default function AnalysisScreen() {
           pr.active = false;
           setPreviewPass(0);
           setPreviewWord("");
+          zoomedRef.current = false;
+          impactZoomAnim.setValue(1);
           videoRef.current?.setRateAsync(1.0, true);
           videoRef.current?.pauseAsync();
-          videoRef.current?.setPositionAsync(0);
-          resetPlaybackClock();
+          seekToZeroAndResetClock();
         } else {
           pr.pass = nextPass as 1 | 2 | 3;
           pr.fired = new Set();
           setPreviewPass(nextPass as 1 | 2 | 3);
           setPreviewWord("");
-          resetPlaybackClock();
-          videoRef.current?.setPositionAsync(0).then(async () => {
+          seekToZeroAndResetClock().then(async () => {
             if (nextPass === 3) await videoRef.current?.setRateAsync(0.6, true);
             await videoRef.current?.playAsync();
             pr.transitioning = false;
@@ -399,9 +425,15 @@ export default function AnalysisScreen() {
     setShowControls(false);
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
-    resetPlaybackClock();
+    // Make sure every beep sound is actually loaded (WAV synthesized,
+    // written to disk, decoded into an Audio.Sound) before the clip starts
+    // moving. preloadSounds() was already fired at app boot, but on a fresh
+    // launch that load can still be in flight the first time Preview is
+    // tapped — this call resolves instantly once warm, and only blocks
+    // playback start on the genuinely-first, cold run.
+    await preloadSounds();
     await videoRef.current.setRateAsync(1.0, true);
-    await videoRef.current.setPositionAsync(0);
+    await seekToZeroAndResetClock();
     await videoRef.current.playAsync();
   };
 
@@ -418,10 +450,9 @@ export default function AnalysisScreen() {
     setShowControls(false);
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
-    resetPlaybackClock();
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
-    await videoRef.current?.setPositionAsync(0);
+    await seekToZeroAndResetClock();
   };
 
   // v1: share the original clip via the OS share sheet. Burning the tempo
@@ -490,7 +521,7 @@ export default function AnalysisScreen() {
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
-            onLoad={() => videoRef.current?.setPositionAsync(0)}
+            onLoad={() => seekToZeroAndResetClock()}
             onPlaybackStatusUpdate={handleStatus}
             onReadyForDisplay={handleReadyForDisplay}
           />

@@ -36,8 +36,6 @@ import {
   computeConsistencyTrend,
   getRecordsForDate,
   getSwingRecords,
-  getTargetRatio,
-  setTargetRatio,
   type SwingRecord,
 } from "@/utils/swingHistory";
 
@@ -109,9 +107,6 @@ export default function ProfileScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [swingRecords, setSwingRecords] = useState<SwingRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [targetRatios, setTargetRatios] = useState<Record<GameMode, number>>({ long: 3.0, short: 2.0 });
-  const [editingGoal, setEditingGoal] = useState<GameMode | null>(null);
-  const [goalInput, setGoalInput] = useState("");
   const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -155,13 +150,6 @@ export default function ProfileScreen() {
     return () => { cancelled = true; clearInterval(timer); };
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    Promise.all([getTargetRatio("long"), getTargetRatio("short")]).then(([long, short]) => {
-      setTargetRatios({ long, short });
-    });
-  }, [user]);
-
   const todaySession   = getTodaySession(sessions);
   const practiceStreak = computeStreak(sessions);
   const totalSwings    = computeTotalSwings(sessions);
@@ -190,22 +178,6 @@ export default function ProfileScreen() {
   const avgRatioLastWeek = avgRatio(lastWeekRecords);
   const hasWeeklyActivity = thisWeekSessions.length > 0 || thisWeekRecords.length > 0;
 
-  const startEditGoal = (mode: GameMode) => {
-    Haptics.selectionAsync();
-    setEditingGoal(mode);
-    setGoalInput(targetRatios[mode].toFixed(2));
-  };
-
-  const saveGoal = async (mode: GameMode) => {
-    const value = parseFloat(goalInput);
-    if (!Number.isFinite(value) || value <= 0) {
-      Alert.alert("Invalid Target", "Enter a ratio like 3.0 or 2.5.");
-      return;
-    }
-    await setTargetRatio(mode, value);
-    setTargetRatios((prev) => ({ ...prev, [mode]: value }));
-    setEditingGoal(null);
-  };
 
   const openRecordedSwing = (record: SwingRecord) => {
     const swing = findSwing(record.origin, record.swingId);
@@ -522,37 +494,6 @@ export default function ProfileScreen() {
                     </View>
                   );
                 })}
-              </View>
-            </View>
-
-            {/* ── Goal / Target Ratio ─────────────────────────────── */}
-            <View style={styles.widgetSection}>
-              <Text style={styles.sectionLabel}>TARGET RATIO</Text>
-              <View style={styles.goalCard}>
-                {GAME_MODES.map((mode, i) => (
-                  <View key={mode} style={[styles.goalRow, i > 0 && styles.goalRowBorder]}>
-                    <Text style={styles.goalRowLabel}>{GAME_MODE_LABELS[mode]}</Text>
-                    {editingGoal === mode ? (
-                      <View style={styles.goalEditRow}>
-                        <TextInput
-                          style={styles.goalInput}
-                          value={goalInput}
-                          onChangeText={setGoalInput}
-                          keyboardType="decimal-pad"
-                          autoFocus
-                        />
-                        <Pressable style={styles.goalSaveBtn} onPress={() => saveGoal(mode)}>
-                          <Feather name="check" size={14} color="#FFF" />
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <Pressable style={styles.goalValueRow} onPress={() => startEditGoal(mode)}>
-                        <Text style={styles.goalValue}>{targetRatios[mode].toFixed(2)}:1</Text>
-                        <Feather name="edit-2" size={12} color="#444444" />
-                      </Pressable>
-                    )}
-                  </View>
-                ))}
               </View>
             </View>
 
@@ -1069,46 +1010,7 @@ const styles = StyleSheet.create({
   consistencyMeta: { fontSize: 10, color: "#444444", fontFamily: "Inter_400Regular" },
   consistencyEmpty: { fontSize: 11, color: "#444444", fontFamily: "Inter_400Regular", marginTop: 6 },
 
-  /* ── Goal setter ────────────── */
-  goalCard: {
-    backgroundColor: "#0D0D0D",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1A1A1A",
-  },
-  goalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
   goalRowBorder: { borderTopWidth: 1, borderTopColor: "#1A1A1A" },
-  goalRowLabel: { fontSize: 13, color: "#CCCCCC", fontFamily: "Inter_500Medium" },
-  goalValueRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  goalValue: { fontSize: 15, color: "#1A8CFF", fontFamily: "Inter_700Bold" },
-  goalEditRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  goalInput: {
-    width: 60,
-    backgroundColor: "#111111",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#1A8CFF",
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    color: "#FFFFFF",
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 13,
-    textAlign: "center",
-  },
-  goalSaveBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#1A8CFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   /* ── Recent swing archive ───── */
   archiveRow: { gap: 10, paddingRight: 4 },

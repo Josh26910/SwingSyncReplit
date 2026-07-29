@@ -263,7 +263,12 @@ async function speakWord(word: string) {
    Public API
 ─────────────────────────────────────────────────────────────────── */
 
-export async function preloadSounds() {
+// Awaitable: callers that are about to start time-sensitive playback (e.g.
+// the analysis preview) can `await preloadSounds()` right before it starts
+// to guarantee every beep is fully loaded first. Once warm (the normal case,
+// since this also fires once at app boot) every load promise here is already
+// settled, so the await is effectively free.
+export async function preloadSounds(): Promise<void> {
   if (Platform.OS === "web") {
     // No file cache on web — instead warm the AudioContext itself so the
     // very first tap doesn't eat the "cold start" latency of creating and
@@ -271,14 +276,14 @@ export async function preloadSounds() {
     warmWebCtx();
     return;
   }
-  // Fire-and-forget — cache gets populated; first play might be slightly
-  // late but subsequent ones will be instant.
-  loadNativeSound("tone_start",  660,   0.12, 0.55);
-  loadNativeSound("tone_top",    880,   0.12, 0.60);
-  loadNativeSound("tone_impact", 1100,  0.18, 0.65);
-  loadNativeSound("piano_start", 523.25, 0.55, 0.50, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 });
-  loadNativeSound("piano_top",   659.25, 0.55, 0.55, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 });
-  loadNativeSound("piano_impact",880.0,  0.65, 0.60, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 });
+  await Promise.all([
+    loadNativeSound("tone_start",  660,   0.12, 0.55),
+    loadNativeSound("tone_top",    880,   0.12, 0.60),
+    loadNativeSound("tone_impact", 1100,  0.18, 0.65),
+    loadNativeSound("piano_start", 523.25, 0.55, 0.50, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 }),
+    loadNativeSound("piano_top",   659.25, 0.55, 0.55, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 }),
+    loadNativeSound("piano_impact",880.0,  0.65, 0.60, "triangle", { a: 0.02, d: 0.12, s: 0.45, r: 0.35 }),
+  ]);
 }
 
 /** Stops anything that can linger past a phase's short envelope (voice cues). */
