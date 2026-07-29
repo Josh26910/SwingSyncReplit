@@ -267,17 +267,25 @@ export default function AnalysisScreen() {
   // crosses each marker. Called both from the authoritative bridge callback
   // and from the higher-frequency interpolation loop below, so whichever
   // reaches the marker first wins — `pr.fired` guards against double-firing.
-  // Whenever we imperatively seek the player back to 0 (pass start/restart),
-  // interpRef and the currentMs state must be force-reset in the same tick.
-  // Otherwise they keep whatever position was left over from before the seek
-  // (e.g. wherever the user had scrubbed to while setting markers, or the
-  // end-of-clip position from the previous pass) — and since the rAF loop
-  // fires beeps off interpRef, a leftover position that's already past a
-  // marker makes it fire instantly instead of when playback actually gets
-  // there, with the frame counter reading the same stale, too-high number.
-  const resetPlaybackClock = () => {
+  //
+  // Every restart-to-0 (initial preview start, each pass transition, stop)
+  // must go through this single helper. The earlier bug: interpRef/currentMs
+  // were force-reset to 0 in JS, but `seekReadyRef` — which gates whether
+  // handleStatus trusts a bridge-reported position at all — was only ever
+  // flipped false on a brand-new video *load*, never on a preview restart.
+  // So during the real async gap between "we reset state to 0" and "the
+  // setPositionAsync(0) bridge call actually lands", any status update that
+  // arrived in between (reporting wherever the player still physically was —
+  // e.g. frame 22 from the marking scrub, or the end of the previous pass)
+  // sailed straight through and overwrote our reset with that stale number.
+  // Gating seekReadyRef across the whole async span, the same way the
+  // initial-load path already did, closes that race for every restart path.
+  const seekToZeroAndResetClock = async () => {
+    seekReadyRef.current = false;
     interpRef.current = { pos: 0, ts: Date.now(), rate: 0 };
     setCurrentMs(0);
+    await videoRef.current?.setPositionAsync(0);
+    seekReadyRef.current = true;
   };
 
   // Slow-motion pass only: freeze on the marker frame exactly as its beep
@@ -386,15 +394,13 @@ export default function AnalysisScreen() {
           impactZoomAnim.setValue(1);
           videoRef.current?.setRateAsync(1.0, true);
           videoRef.current?.pauseAsync();
-          videoRef.current?.setPositionAsync(0);
-          resetPlaybackClock();
+          seekToZeroAndResetClock();
         } else {
           pr.pass = nextPass as 1 | 2 | 3;
           pr.fired = new Set();
           setPreviewPass(nextPass as 1 | 2 | 3);
           setPreviewWord("");
-          resetPlaybackClock();
-          videoRef.current?.setPositionAsync(0).then(async () => {
+          seekToZeroAndResetClock().then(async () => {
             if (nextPass === 3) await videoRef.current?.setRateAsync(0.6, true);
             await videoRef.current?.playAsync();
             pr.transitioning = false;
@@ -419,7 +425,6 @@ export default function AnalysisScreen() {
     setShowControls(false);
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
-    resetPlaybackClock();
     // Make sure every beep sound is actually loaded (WAV synthesized,
     // written to disk, decoded into an Audio.Sound) before the clip starts
     // moving. preloadSounds() was already fired at app boot, but on a fresh
@@ -428,7 +433,7 @@ export default function AnalysisScreen() {
     // playback start on the genuinely-first, cold run.
     await preloadSounds();
     await videoRef.current.setRateAsync(1.0, true);
-    await videoRef.current.setPositionAsync(0);
+    await seekToZeroAndResetClock();
     await videoRef.current.playAsync();
   };
 
@@ -445,10 +450,9 @@ export default function AnalysisScreen() {
     setShowControls(false);
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
-    resetPlaybackClock();
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
-    await videoRef.current?.setPositionAsync(0);
+    await seekToZeroAndResetClock();
   };
 
   // v1: share the original clip via the OS share sheet. Burning the tempo
@@ -517,11 +521,7 @@ export default function AnalysisScreen() {
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
-            onLoad={async () => {
-              await videoRef.current?.setPositionAsync(0);
-              seekReadyRef.current = true;
-              setCurrentMs(0);
-            }}
+            onLoad={() => seekToZeroAndResetClock()}
             onPlaybackStatusUpdate={handleStatus}
             onReadyForDisplay={handleReadyForDisplay}
           />
