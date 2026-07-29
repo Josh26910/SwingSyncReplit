@@ -14,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   useWindowDimensions,
@@ -74,6 +75,7 @@ export default function AnalysisScreen() {
   const videoRef = useRef<Video>(null);
   const {
     audioMode, setAudioMode, gameMode, setGameMode,
+    zoomEnabled, setZoomEnabled,
     setIsPlaying: setIsTempoPlaying,
   } = useTempo();
   const { activeSwing, activeOrigin, addSwing, updateSwing, setActive } = useSwingLibrary();
@@ -368,7 +370,7 @@ export default function AnalysisScreen() {
       // (pass 3), ease into a tight zoom once we enter the impact window and
       // hold it — the zoom should stay until the pass ends, not ease back
       // out again once position moves past the marker.
-      if (pr.pass === 3 && marks.impact !== null) {
+      if (zoomEnabled && pr.pass === 3 && marks.impact !== null) {
         const shouldZoom = pos >= marks.impact - IMPACT_ZOOM_WINDOW_MS;
         if (shouldZoom && !zoomedRef.current) {
           zoomedRef.current = true;
@@ -845,6 +847,23 @@ export default function AnalysisScreen() {
               </View>
             </View>
 
+            <View style={styles.marksSection}>
+              <View style={styles.zoomToggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.zoomToggleLabel}>Impact Zoom</Text>
+                  <Text style={styles.zoomToggleSubtext}>
+                    Zoom in during the slow-motion pass
+                  </Text>
+                </View>
+                <Switch
+                  value={zoomEnabled}
+                  onValueChange={(v) => { Haptics.selectionAsync(); setZoomEnabled(v); }}
+                  trackColor={{ false: "#1A1A1A", true: BLUE }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </View>
+
             <View style={styles.actionRow}>
               <Pressable
                 style={[styles.actionBtn, !analysis && styles.actionBtnDim]}
@@ -1220,6 +1239,28 @@ const styles = StyleSheet.create({
     color: "#555555",
   },
   audioModeLabelActive: { color: "#FFFFFF" },
+  zoomToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0D0D0D",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  zoomToggleLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "#CCCCCC",
+  },
+  zoomToggleSubtext: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "#444444",
+    marginTop: 2,
+  },
   clubChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   clubChip: {
     paddingHorizontal: 14,
