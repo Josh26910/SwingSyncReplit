@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Animated,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -14,10 +13,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import YoutubePlayer from "react-native-youtube-iframe";
 
 import { useListTempoVideos } from "@workspace/api-client-react";
 
+import TempoVideoEmbed from "@/components/TempoVideoEmbed";
 import { useTempo } from "@/context/TempoContext";
 import {
   CATEGORY_LABELS,
@@ -113,29 +112,14 @@ function PlayerDetail({
 
         {/* Reference swing video — only once a clip has actually been
             sourced/uploaded to YouTube for this entry (youtubeId is null
-            for most rows until then). Web doesn't get a native player here,
-            so it falls back to an anchor link instead of trying to embed. */}
+            for most rows until then). TempoVideoEmbed.web.tsx renders a
+            plain link instead of an embed on web (see that file for why). */}
         {player.youtubeId && (
-          Platform.OS === "web" ? (
-            <Pressable
-              style={detail.videoWebFallback}
-              onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${player.youtubeId}`)}
-            >
-              <Feather name="youtube" size={16} color={BLUE} />
-              <Text style={detail.videoWebFallbackText}>Watch on YouTube</Text>
-            </Pressable>
-          ) : (
-            <View style={detail.videoWrap}>
-              <YoutubePlayer
-                height={200}
-                videoId={player.youtubeId}
-                initialPlayerParams={{
-                  start: player.clipStartSec ? Math.round(player.clipStartSec) : undefined,
-                  end: player.clipEndSec ? Math.round(player.clipEndSec) : undefined,
-                }}
-              />
-            </View>
-          )
+          <TempoVideoEmbed
+            youtubeId={player.youtubeId}
+            clipStartSec={player.clipStartSec}
+            clipEndSec={player.clipEndSec}
+          />
         )}
 
         {/* Audio mode toggle */}
@@ -240,7 +224,7 @@ export default function TemposScreen() {
   // fallback so the tab is never empty while the request is in flight.
   const { data: tempoVideos } = useListTempoVideos();
   const allPlayers: PlayerTempo[] =
-    tempoVideos && tempoVideos.length > 0
+    Array.isArray(tempoVideos) && tempoVideos.length > 0
       ? tempoVideos
       : getPlayersByCategory("tee").concat(
           getPlayersByCategory("approach"),
@@ -426,9 +410,6 @@ const detail = StyleSheet.create({
   timelineLabel: { color: MUTED, fontSize: 10, fontFamily: "Inter_500Medium", letterSpacing: 0.8 },
   eventBadge:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0A1A2A", borderWidth: StyleSheet.hairlineWidth, borderColor: "#1A3A5A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 28 },
   eventText:     { color: BLUE, fontSize: 12, fontFamily: "Inter_500Medium" },
-  videoWrap:     { borderRadius: 14, overflow: "hidden", marginBottom: 24 },
-  videoWebFallback: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: CARD_BG, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, borderRadius: 14, paddingVertical: 16, marginBottom: 24 },
-  videoWebFallbackText: { color: BLUE, fontSize: 14, fontFamily: "Inter_600SemiBold" },
   toggleRow:     { flexDirection: "row", backgroundColor: CARD_BG, borderRadius: 14, padding: 4, marginBottom: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   toggleBtn:     { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 11 },
   toggleActive:  { backgroundColor: BLUE },
