@@ -258,6 +258,19 @@ export default function AnalysisScreen() {
   // crosses each marker. Called both from the authoritative bridge callback
   // and from the higher-frequency interpolation loop below, so whichever
   // reaches the marker first wins — `pr.fired` guards against double-firing.
+  // Whenever we imperatively seek the player back to 0 (pass start/restart),
+  // interpRef and the currentMs state must be force-reset in the same tick.
+  // Otherwise they keep whatever position was left over from before the seek
+  // (e.g. wherever the user had scrubbed to while setting markers, or the
+  // end-of-clip position from the previous pass) — and since the rAF loop
+  // fires beeps off interpRef, a leftover position that's already past a
+  // marker makes it fire instantly instead of when playback actually gets
+  // there, with the frame counter reading the same stale, too-high number.
+  const resetPlaybackClock = () => {
+    interpRef.current = { pos: 0, ts: Date.now(), rate: 0 };
+    setCurrentMs(0);
+  };
+
   const fireMarkerEvents = (pos: number) => {
     const pr = previewRef.current;
     if (!pr.active) return;
@@ -354,11 +367,13 @@ export default function AnalysisScreen() {
           videoRef.current?.setRateAsync(1.0, true);
           videoRef.current?.pauseAsync();
           videoRef.current?.setPositionAsync(0);
+          resetPlaybackClock();
         } else {
           pr.pass = nextPass as 1 | 2 | 3;
           pr.fired = new Set();
           setPreviewPass(nextPass as 1 | 2 | 3);
           setPreviewWord("");
+          resetPlaybackClock();
           videoRef.current?.setPositionAsync(0).then(async () => {
             if (nextPass === 3) await videoRef.current?.setRateAsync(0.6, true);
             await videoRef.current?.playAsync();
@@ -384,6 +399,7 @@ export default function AnalysisScreen() {
     setShowControls(false);
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
+    resetPlaybackClock();
     await videoRef.current.setRateAsync(1.0, true);
     await videoRef.current.setPositionAsync(0);
     await videoRef.current.playAsync();
@@ -402,6 +418,7 @@ export default function AnalysisScreen() {
     setShowControls(false);
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
+    resetPlaybackClock();
     await videoRef.current?.setRateAsync(1.0, true);
     await videoRef.current?.pauseAsync();
     await videoRef.current?.setPositionAsync(0);
