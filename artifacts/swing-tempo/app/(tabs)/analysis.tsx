@@ -29,7 +29,7 @@ import {
   type Swing,
 } from "@/context/SwingLibraryContext";
 import { CATEGORY_LABELS, type ShotCategory } from "@/data/tempoPlayers";
-import { playImpact, playStart, playTop, stopAllAudio } from "@/utils/audio";
+import { playImpact, playStart, playTop, preloadSounds, stopAllAudio } from "@/utils/audio";
 import { hapticImpact, hapticTakeaway, hapticTop } from "@/utils/haptics";
 import { useActiveTimeTracker } from "@/hooks/useActiveTimeTracker";
 import { incrementSwingsAnalyzed } from "@/utils/sessions";
@@ -48,8 +48,8 @@ const CLUB_TAGS: ShotCategory[] = ["tee", "approach", "shortgame", "putting"];
 /** How close to the impact marker (ms of video time) triggers the slow-motion zoom. */
 const IMPACT_ZOOM_WINDOW_MS = 350;
 const IMPACT_ZOOM_SCALE = 1.35;
-/** How long the slow-motion pass freezes on the takeaway frame before resuming. */
-const TAKEAWAY_PAUSE_MS = 500;
+/** How long the slow-motion pass freezes on each marker frame before resuming. */
+const MARKER_PAUSE_MS = 500;
 
 const PHASE_WORDS: Record<"takeaway" | "top" | "impact", string> = {
   takeaway: "TAKEAWAY",
@@ -100,7 +100,14 @@ export default function AnalysisScreen() {
   // what read as beep lag; interpolating position between samples lets the
   // rAF loop below detect a marker crossing within a frame or two of it
   // actually happening instead of waiting for the next bridge update.
-  const interpRef = useRef({ pos: 0, ts: Date.now(), rate: 1 });
+  const interpRef = useRef({ pos: 0, ts: Date.now(), rate: 0 });
+  // Set once our post-load "force seek to 0" call has actually resolved.
+  // Until then, any positionMillis the bridge reports (which on some
+  // devices arrives already a few frames into the clip, before our seek
+  // takes effect) is ignored in favor of a hard 0 — otherwise the frame
+  // counter/beeps can start from that leftover native starting position
+  // instead of a true frame 0.
+  const seekReadyRef = useRef(false);
 
   const videoUri = activeSwing?.uri ?? null;
   const marks: Markers = activeSwing?.markers ?? EMPTY_MARKERS;
@@ -130,6 +137,8 @@ export default function AnalysisScreen() {
     previewRef.current = { active: false, pass: 0, fired: new Set(), transitioning: false };
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
+    interpRef.current = { pos: 0, ts: Date.now(), rate: 0 };
+    seekReadyRef.current = false;
   }, [activeSwing?.id]);
 
   const pickVideo = async () => {
@@ -271,6 +280,19 @@ export default function AnalysisScreen() {
     setCurrentMs(0);
   };
 
+  // Slow-motion pass only: freeze on the marker frame exactly as its beep
+  // fires, then resume — play → reach marker → pause + beep → continue.
+  // Applies to all three markers (takeaway, top, impact), not just takeaway.
+  const pauseThenResumeIfSlowMo = () => {
+    if (previewRef.current.pass !== 3) return;
+    videoRef.current?.pauseAsync();
+    setTimeout(() => {
+      if (previewRef.current.active && previewRef.current.pass === 3) {
+        videoRef.current?.playAsync();
+      }
+    }, MARKER_PAUSE_MS);
+  };
+
   const fireMarkerEvents = (pos: number) => {
     const pr = previewRef.current;
     if (!pr.active) return;
@@ -280,28 +302,21 @@ export default function AnalysisScreen() {
       playStart(audioMode);
       hapticTakeaway();
       setPreviewWord(PHASE_WORDS.takeaway);
-      // Slow-motion pass: freeze on the takeaway frame exactly as the beep
-      // fires, then resume — play → reach takeaway → pause + beep → continue.
-      if (pr.pass === 3) {
-        videoRef.current?.pauseAsync();
-        setTimeout(() => {
-          if (previewRef.current.active && previewRef.current.pass === 3) {
-            videoRef.current?.playAsync();
-          }
-        }, TAKEAWAY_PAUSE_MS);
-      }
+      pauseThenResumeIfSlowMo();
     }
     if (marks.top !== null && !pr.fired.has("top") && pos >= marks.top) {
       pr.fired.add("top");
       playTop(audioMode);
       hapticTop();
       setPreviewWord(PHASE_WORDS.top);
+      pauseThenResumeIfSlowMo();
     }
     if (marks.impact !== null && !pr.fired.has("impact") && pos >= marks.impact) {
       pr.fired.add("impact");
       playImpact(audioMode);
       hapticImpact();
       setPreviewWord(PHASE_WORDS.impact);
+      pauseThenResumeIfSlowMo();
     }
   };
 
@@ -326,7 +341,10 @@ export default function AnalysisScreen() {
 
   const handleStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
-    const pos = status.positionMillis ?? 0;
+    // Until our post-load seek-to-0 has actually resolved, ignore whatever
+    // position the bridge reports — on some devices the first report or two
+    // arrives already a few frames into the clip, before our seek lands.
+    const pos = seekReadyRef.current ? (status.positionMillis ?? 0) : 0;
     setCurrentMs(pos);
     if (status.durationMillis) setDurationMs(status.durationMillis);
     setIsPlaying(status.isPlaying);
@@ -339,15 +357,15 @@ export default function AnalysisScreen() {
       fireMarkerEvents(pos);
 
       // Slow-motion impact zoom: only during the dedicated slow-mo pass
-      // (pass 3), ease the video in/out of a tight zoom around the impact
-      // marker so the moment of contact reads clearly without needing real
-      // subject tracking.
+      // (pass 3), ease into a tight zoom once we enter the impact window and
+      // hold it — the zoom should stay until the pass ends, not ease back
+      // out again once position moves past the marker.
       if (pr.pass === 3 && marks.impact !== null) {
-        const withinZoomWindow = Math.abs(pos - marks.impact) <= IMPACT_ZOOM_WINDOW_MS;
-        if (withinZoomWindow !== zoomedRef.current) {
-          zoomedRef.current = withinZoomWindow;
+        const shouldZoom = pos >= marks.impact - IMPACT_ZOOM_WINDOW_MS;
+        if (shouldZoom && !zoomedRef.current) {
+          zoomedRef.current = true;
           Animated.timing(impactZoomAnim, {
-            toValue: withinZoomWindow ? IMPACT_ZOOM_SCALE : 1,
+            toValue: IMPACT_ZOOM_SCALE,
             duration: 220,
             useNativeDriver: true,
           }).start();
@@ -364,6 +382,8 @@ export default function AnalysisScreen() {
           pr.active = false;
           setPreviewPass(0);
           setPreviewWord("");
+          zoomedRef.current = false;
+          impactZoomAnim.setValue(1);
           videoRef.current?.setRateAsync(1.0, true);
           videoRef.current?.pauseAsync();
           videoRef.current?.setPositionAsync(0);
@@ -400,6 +420,13 @@ export default function AnalysisScreen() {
     zoomedRef.current = false;
     impactZoomAnim.setValue(1);
     resetPlaybackClock();
+    // Make sure every beep sound is actually loaded (WAV synthesized,
+    // written to disk, decoded into an Audio.Sound) before the clip starts
+    // moving. preloadSounds() was already fired at app boot, but on a fresh
+    // launch that load can still be in flight the first time Preview is
+    // tapped — this call resolves instantly once warm, and only blocks
+    // playback start on the genuinely-first, cold run.
+    await preloadSounds();
     await videoRef.current.setRateAsync(1.0, true);
     await videoRef.current.setPositionAsync(0);
     await videoRef.current.playAsync();
@@ -490,7 +517,11 @@ export default function AnalysisScreen() {
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
-            onLoad={() => videoRef.current?.setPositionAsync(0)}
+            onLoad={async () => {
+              await videoRef.current?.setPositionAsync(0);
+              seekReadyRef.current = true;
+              setCurrentMs(0);
+            }}
             onPlaybackStatusUpdate={handleStatus}
             onReadyForDisplay={handleReadyForDisplay}
           />
