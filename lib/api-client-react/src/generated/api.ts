@@ -25,9 +25,13 @@ import type {
   ChangePasswordRequest,
   ErrorResponse,
   HealthStatus,
+  ListTempoVideosParams,
   LoginRequest,
   SignupRequest,
   SyncPayload,
+  TempoVideoDto,
+  TempoVideoInput,
+  TempoVideoPatch,
   UpdateProfileRequest
 } from './api.schemas';
 
@@ -562,5 +566,300 @@ export const useSync = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getSyncMutationOptions(options));
+    }
+
+export const getListTempoVideosUrl = (params?: ListTempoVideosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tempo-videos?${stringifiedParams}` : `/api/tempo-videos`
+}
+
+/**
+ * @summary List reference-pro tempo entries, optionally filtered by category
+ */
+export const listTempoVideos = async (params?: ListTempoVideosParams, options?: RequestInit): Promise<TempoVideoDto[]> => {
+
+  return customFetch<TempoVideoDto[]>(getListTempoVideosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTempoVideosQueryKey = (params?: ListTempoVideosParams,) => {
+    return [
+    `/api/tempo-videos`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListTempoVideosQueryOptions = <TData = Awaited<ReturnType<typeof listTempoVideos>>, TError = ErrorType<unknown>>(params?: ListTempoVideosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTempoVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTempoVideosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTempoVideos>>> = ({ signal }) => listTempoVideos(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTempoVideos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTempoVideosQueryResult = NonNullable<Awaited<ReturnType<typeof listTempoVideos>>>
+export type ListTempoVideosQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List reference-pro tempo entries, optionally filtered by category
+ */
+
+export function useListTempoVideos<TData = Awaited<ReturnType<typeof listTempoVideos>>, TError = ErrorType<unknown>>(
+ params?: ListTempoVideosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTempoVideos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTempoVideosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTempoVideoUrl = () => {
+
+
+
+
+  return `/api/tempo-videos`
+}
+
+/**
+ * @summary Add a tempo video entry (admin only)
+ */
+export const createTempoVideo = async (tempoVideoInput: TempoVideoInput, options?: RequestInit): Promise<TempoVideoDto> => {
+
+  return customFetch<TempoVideoDto>(getCreateTempoVideoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(tempoVideoInput)
+  }
+);}
+
+
+
+
+export const getCreateTempoVideoMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTempoVideo>>, TError,{data: BodyType<TempoVideoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTempoVideo>>, TError,{data: BodyType<TempoVideoInput>}, TContext> => {
+
+const mutationKey = ['createTempoVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTempoVideo>>, {data: BodyType<TempoVideoInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTempoVideo(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTempoVideoMutationResult = NonNullable<Awaited<ReturnType<typeof createTempoVideo>>>
+    export type CreateTempoVideoMutationBody = BodyType<TempoVideoInput>
+    export type CreateTempoVideoMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Add a tempo video entry (admin only)
+ */
+export const useCreateTempoVideo = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTempoVideo>>, TError,{data: BodyType<TempoVideoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTempoVideo>>,
+        TError,
+        {data: BodyType<TempoVideoInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTempoVideoMutationOptions(options));
+    }
+
+export const getUpdateTempoVideoUrl = (id: string,) => {
+
+
+
+
+  return `/api/tempo-videos/${id}`
+}
+
+/**
+ * @summary Update a tempo video entry, e.g. attach a youtubeId once sourced (admin only)
+ */
+export const updateTempoVideo = async (id: string,
+    tempoVideoPatch: TempoVideoPatch, options?: RequestInit): Promise<TempoVideoDto> => {
+
+  return customFetch<TempoVideoDto>(getUpdateTempoVideoUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(tempoVideoPatch)
+  }
+);}
+
+
+
+
+export const getUpdateTempoVideoMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTempoVideo>>, TError,{id: string;data: BodyType<TempoVideoPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTempoVideo>>, TError,{id: string;data: BodyType<TempoVideoPatch>}, TContext> => {
+
+const mutationKey = ['updateTempoVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTempoVideo>>, {id: string;data: BodyType<TempoVideoPatch>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTempoVideo(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTempoVideoMutationResult = NonNullable<Awaited<ReturnType<typeof updateTempoVideo>>>
+    export type UpdateTempoVideoMutationBody = BodyType<TempoVideoPatch>
+    export type UpdateTempoVideoMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update a tempo video entry, e.g. attach a youtubeId once sourced (admin only)
+ */
+export const useUpdateTempoVideo = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTempoVideo>>, TError,{id: string;data: BodyType<TempoVideoPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTempoVideo>>,
+        TError,
+        {id: string;data: BodyType<TempoVideoPatch>},
+        TContext
+      > => {
+      return useMutation(getUpdateTempoVideoMutationOptions(options));
+    }
+
+export const getDeleteTempoVideoUrl = (id: string,) => {
+
+
+
+
+  return `/api/tempo-videos/${id}`
+}
+
+/**
+ * @summary Remove a tempo video entry (admin only)
+ */
+export const deleteTempoVideo = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTempoVideoUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTempoVideoMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTempoVideo>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTempoVideo>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteTempoVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTempoVideo>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTempoVideo(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTempoVideoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTempoVideo>>>
+
+    export type DeleteTempoVideoMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Remove a tempo video entry (admin only)
+ */
+export const useDeleteTempoVideo = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTempoVideo>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTempoVideo>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTempoVideoMutationOptions(options));
     }
 

@@ -92,3 +92,70 @@ export interface SyncPayload {
   swingRecords: SwingRecordDto[];
 }
 
+export type ShotCategory = typeof ShotCategory[keyof typeof ShotCategory];
+
+
+export const ShotCategory = {
+  tee: 'tee',
+  approach: 'approach',
+  shortgame: 'shortgame',
+  putting: 'putting',
+} as const;
+
+export interface TempoVideoDto {
+  id: string;
+  category: ShotCategory;
+  name: string;
+  event: string;
+  year: number;
+  club: string;
+  ratio: number;
+  duration: number;
+  backswing: number;
+  downswing: number;
+  result?: string | null;
+  /** YouTube video id (not the full URL). Null until a clip has been sourced/uploaded for this entry. */
+  youtubeId?: string | null;
+  clipStartSec?: number | null;
+  clipEndSec?: number | null;
+  sortOrder: number;
+}
+
+export interface TempoVideoInput {
+  category: ShotCategory;
+  name: string;
+  event: string;
+  year: number;
+  club: string;
+  ratio: number;
+  duration: number;
+  backswing: number;
+  downswing: number;
+  result?: string;
+  youtubeId?: string;
+  clipStartSec?: number;
+  clipEndSec?: number;
+  sortOrder?: number;
+}
+
+export interface TempoVideoPatch {
+  category?: ShotCategory;
+  name?: string;
+  event?: string;
+  year?: number;
+  club?: string;
+  ratio?: number;
+  duration?: number;
+  backswing?: number;
+  downswing?: number;
+  result?: string;
+  youtubeId?: string;
+  clipStartSec?: number;
+  clipEndSec?: number;
+  sortOrder?: number;
+}
+
+export type ListTempoVideosParams = {
+category?: ShotCategory;
+};
+

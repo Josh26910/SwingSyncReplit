@@ -146,3 +146,122 @@ export const SyncResponse = zod.object({
 })
 
 
+/**
+ * @summary List reference-pro tempo entries, optionally filtered by category
+ */
+export const ListTempoVideosQueryParams = zod.object({
+  "category": zod.enum(['tee', 'approach', 'shortgame', 'putting']).optional()
+})
+
+export const ListTempoVideosResponseItem = zod.object({
+  "id": zod.string(),
+  "category": zod.enum(['tee', 'approach', 'shortgame', 'putting']),
+  "name": zod.string(),
+  "event": zod.string(),
+  "year": zod.number(),
+  "club": zod.string(),
+  "ratio": zod.number(),
+  "duration": zod.number(),
+  "backswing": zod.number(),
+  "downswing": zod.number(),
+  "result": zod.string().nullish(),
+  "youtubeId": zod.string().nullish().describe('YouTube video id (not the full URL). Null until a clip has been sourced\/uploaded for this entry.'),
+  "clipStartSec": zod.number().nullish(),
+  "clipEndSec": zod.number().nullish(),
+  "sortOrder": zod.number()
+})
+export const ListTempoVideosResponse = zod.array(ListTempoVideosResponseItem)
+
+
+/**
+ * @summary Add a tempo video entry (admin only)
+ */
+export const CreateTempoVideoBody = zod.object({
+  "category": zod.enum(['tee', 'approach', 'shortgame', 'putting']),
+  "name": zod.string(),
+  "event": zod.string(),
+  "year": zod.number(),
+  "club": zod.string(),
+  "ratio": zod.number(),
+  "duration": zod.number(),
+  "backswing": zod.number(),
+  "downswing": zod.number(),
+  "result": zod.string().optional(),
+  "youtubeId": zod.string().optional(),
+  "clipStartSec": zod.number().optional(),
+  "clipEndSec": zod.number().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const CreateTempoVideoResponse = zod.object({
+  "id": zod.string(),
+  "category": zod.enum(['tee', 'approach', 'shortgame', 'putting']),
+  "name": zod.string(),
+  "event": zod.string(),
+  "year": zod.number(),
+  "club": zod.string(),
+  "ratio": zod.number(),
+  "duration": zod.number(),
+  "backswing": zod.number(),
+  "downswing": zod.number(),
+  "result": zod.string().nullish(),
+  "youtubeId": zod.string().nullish().describe('YouTube video id (not the full URL). Null until a clip has been sourced\/uploaded for this entry.'),
+  "clipStartSec": zod.number().nullish(),
+  "clipEndSec": zod.number().nullish(),
+  "sortOrder": zod.number()
+})
+
+
+/**
+ * @summary Update a tempo video entry, e.g. attach a youtubeId once sourced (admin only)
+ */
+export const UpdateTempoVideoParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateTempoVideoBody = zod.object({
+  "category": zod.enum(['tee', 'approach', 'shortgame', 'putting']).optional(),
+  "name": zod.string().optional(),
+  "event": zod.string().optional(),
+  "year": zod.number().optional(),
+  "club": zod.string().optional(),
+  "ratio": zod.number().optional(),
+  "duration": zod.number().optional(),
+  "backswing": zod.number().optional(),
+  "downswing": zod.number().optional(),
+  "result": zod.string().optional(),
+  "youtubeId": zod.string().optional(),
+  "clipStartSec": zod.number().optional(),
+  "clipEndSec": zod.number().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateTempoVideoResponse = zod.object({
+  "id": zod.string(),
+  "category": zod.enum(['tee', 'approach', 'shortgame', 'putting']),
+  "name": zod.string(),
+  "event": zod.string(),
+  "year": zod.number(),
+  "club": zod.string(),
+  "ratio": zod.number(),
+  "duration": zod.number(),
+  "backswing": zod.number(),
+  "downswing": zod.number(),
+  "result": zod.string().nullish(),
+  "youtubeId": zod.string().nullish().describe('YouTube video id (not the full URL). Null until a clip has been sourced\/uploaded for this entry.'),
+  "clipStartSec": zod.number().nullish(),
+  "clipEndSec": zod.number().nullish(),
+  "sortOrder": zod.number()
+})
+
+
+/**
+ * @summary Remove a tempo video entry (admin only)
+ */
+export const DeleteTempoVideoParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteTempoVideoResponse = zod.void()
+
+

@@ -11,6 +11,8 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required env: `JWT_SECRET` — signs/verifies account auth tokens (any long random string; treat as a secret)
+- Required env: `ADMIN_TOKEN` — shared secret gating the tempo-videos admin endpoints/screen (any long random string; treat as a secret). Enter it once at `/admin-tempo-videos` in the app; it's cached on-device afterward.
+- One-time setup for tempo videos: after `DATABASE_URL`/schema push, run `pnpm --filter @workspace/api-server run seed:tempo-videos` to migrate the old bundled `TEMPO_PLAYERS` array into the `tempo_videos` table (safe to re-run — it no-ops if the table already has rows).
 
 ## Stack
 
@@ -27,6 +29,7 @@ _Replace the heading above with the project's name, and this line with one sente
 - API contract (source of truth): `lib/api-spec/openapi.yaml` — edit this, then run the codegen command above; never hand-edit `lib/api-zod/src/generated/**` or `lib/api-client-react/src/generated/**`
 - Account auth: `artifacts/api-server/src/routes/auth.ts` (signup/login/me) + `artifacts/api-server/src/middlewares/auth.ts` (bearer-token verification)
 - Cloud sync: `artifacts/api-server/src/routes/sync.ts` (server merge) + `artifacts/swing-tempo/hooks/useCloudSync.ts` (client push/pull loop), mounted app-wide via `artifacts/swing-tempo/components/CloudSyncManager.tsx` in `app/_layout.tsx`
+- Tempos tab reference videos: `artifacts/api-server/src/routes/tempoVideos.ts` (admin-gated CRUD + public list) + `artifacts/swing-tempo/app/admin-tempo-videos.tsx` (unlinked admin screen — paste a YouTube URL/id and optional clip start to attach a clip to an entry, no redeploy needed). The videos themselves are never stored/hosted by us — only a `youtubeId` + optional clip-start/end seconds live in the `tempo_videos` table; `artifacts/swing-tempo/data/tempoPlayers.ts`'s static `TEMPO_PLAYERS` array is kept only as an offline/first-load fallback for the Tempos tab.
 
 ## Architecture decisions
 
