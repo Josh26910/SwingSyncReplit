@@ -1,7 +1,9 @@
 import {
+  changePassword as apiChangePassword,
   getCurrentUser as apiGetCurrentUser,
   login as apiLogin,
   signup as apiSignup,
+  updateProfile as apiUpdateProfile,
   setAuthTokenGetter,
   setBaseUrl,
   type AuthUser,
@@ -19,6 +21,8 @@ interface AuthContextValue {
   signUp: (email: string, password: string, name?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateName: (name: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -67,8 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateName = useCallback(async (name: string) => {
+    setUser(await apiUpdateProfile({ name }));
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await apiChangePassword({ currentPassword, newPassword });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, signUp, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, signUp, signIn, signOut, updateName, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   );

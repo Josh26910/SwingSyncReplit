@@ -32,6 +32,16 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+export interface UpdateProfileRequest {
+  name: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  /** @minLength 8 */
+  newPassword: string;
+}
+
 export interface ErrorResponse {
   error: string;
 }

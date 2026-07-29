@@ -1,4 +1,10 @@
-import { GetCurrentUserResponse, LoginBody, SignupBody } from "@workspace/api-zod";
+import {
+  ChangePasswordBody,
+  GetCurrentUserResponse,
+  LoginBody,
+  SignupBody,
+  UpdateProfileBody,
+} from "@workspace/api-zod";
 import { db, type User, usersTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
@@ -73,6 +79,45 @@ router.post("/auth/login", async (req, res) => {
 
 router.get("/auth/me", requireAuth, (req: AuthedRequest, res) => {
   res.json(toAuthUser(req.user!));
+});
+
+router.patch("/auth/me", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = UpdateProfileBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid profile payload." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ name: parsed.data.name })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning();
+
+  res.json(toAuthUser(updated!));
+});
+
+router.patch("/auth/password", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = ChangePasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid password payload." });
+    return;
+  }
+
+  const matches = await bcrypt.compare(parsed.data.currentPassword, req.user!.passwordHash);
+  if (!matches) {
+    res.status(400).json({ error: "Current password is incorrect." });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+  const [updated] = await db
+    .update(usersTable)
+    .set({ passwordHash })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning();
+
+  res.json(toAuthUser(updated!));
 });
 
 export default router;
