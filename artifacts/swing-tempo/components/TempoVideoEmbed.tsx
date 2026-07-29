@@ -1,6 +1,8 @@
+import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { StyleSheet, View } from "react-native";
-import YoutubePlayer from "react-native-youtube-iframe";
+import { Linking, Pressable, StyleSheet, Text } from "react-native";
+
+const BLUE = "#1A8CFF";
 
 interface TempoVideoEmbedProps {
   youtubeId: string;
@@ -8,26 +10,34 @@ interface TempoVideoEmbedProps {
   clipEndSec?: number | null;
 }
 
-// Native only — react-native-youtube-iframe's web build pulls in
-// react-native-web-webview (not installed, and not something we want to
-// depend on), so this file must never be imported by the web bundle. See
-// TempoVideoEmbed.web.tsx for the web fallback; Metro picks whichever
-// matches the target platform via the .web.tsx suffix.
-export default function TempoVideoEmbed({ youtubeId, clipStartSec, clipEndSec }: TempoVideoEmbedProps) {
+// Links out to YouTube on every platform rather than embedding inline.
+// An inline player (react-native-youtube-iframe) was tried and reverted —
+// it broke both web (its web build pulls in react-native-web-webview,
+// which isn't installed) and native (the deployed build's node_modules
+// never picked up the new dependency). Revisit once there's an actual need
+// for inline playback; a plain link has no dependency-install failure mode.
+export default function TempoVideoEmbed({ youtubeId, clipStartSec }: TempoVideoEmbedProps) {
+  const url = `https://www.youtube.com/watch?v=${youtubeId}${clipStartSec ? `&t=${Math.round(clipStartSec)}s` : ""}`;
   return (
-    <View style={styles.wrap}>
-      <YoutubePlayer
-        height={200}
-        videoId={youtubeId}
-        initialPlayerParams={{
-          start: clipStartSec ? Math.round(clipStartSec) : undefined,
-          end: clipEndSec ? Math.round(clipEndSec) : undefined,
-        }}
-      />
-    </View>
+    <Pressable style={styles.fallback} onPress={() => Linking.openURL(url)}>
+      <Feather name="youtube" size={16} color={BLUE} />
+      <Text style={styles.fallbackText}>Watch on YouTube</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderRadius: 14, overflow: "hidden", marginBottom: 24 },
+  fallback: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#111111",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#1E1E1E",
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginBottom: 24,
+  },
+  fallbackText: { color: BLUE, fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });
