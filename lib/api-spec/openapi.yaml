@@ -14,6 +14,8 @@ tags:
     description: Account creation and authentication
   - name: sync
     description: Local-first sync of practice sessions and swing history
+  - name: tempoVideos
+    description: Reference-pro tempo entries shown on the Tempos tab
 paths:
   /healthz:
     get:
@@ -185,12 +187,120 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /tempo-videos:
+    get:
+      operationId: listTempoVideos
+      tags: [tempoVideos]
+      summary: List reference-pro tempo entries, optionally filtered by category
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ShotCategory"
+      responses:
+        "200":
+          description: Tempo video entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TempoVideoDto"
+    post:
+      operationId: createTempoVideo
+      tags: [tempoVideos]
+      summary: Add a tempo video entry (admin only)
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TempoVideoInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TempoVideoDto"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tempo-videos/{id}:
+    patch:
+      operationId: updateTempoVideo
+      tags: [tempoVideos]
+      summary: Update a tempo video entry, e.g. attach a youtubeId once sourced (admin only)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TempoVideoPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TempoVideoDto"
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No entry with that id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteTempoVideo
+      tags: [tempoVideos]
+      summary: Remove a tempo video entry (admin only)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Not authenticated as admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    adminAuth:
+      type: apiKey
+      in: header
+      name: x-admin-token
   schemas:
     HealthStatus:
       type: object
@@ -344,3 +454,128 @@ components:
       required:
         - sessions
         - swingRecords
+    ShotCategory:
+      type: string
+      enum: [tee, approach, shortgame, putting]
+    TempoVideoDto:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          $ref: "#/components/schemas/ShotCategory"
+        name:
+          type: string
+        event:
+          type: string
+        year:
+          type: integer
+        club:
+          type: string
+        ratio:
+          type: number
+        duration:
+          type: number
+        backswing:
+          type: number
+        downswing:
+          type: number
+        result:
+          type: string
+          nullable: true
+        youtubeId:
+          type: string
+          nullable: true
+          description: YouTube video id (not the full URL). Null until a clip has been sourced/uploaded for this entry.
+        clipStartSec:
+          type: number
+          nullable: true
+        clipEndSec:
+          type: number
+          nullable: true
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - category
+        - name
+        - event
+        - year
+        - club
+        - ratio
+        - duration
+        - backswing
+        - downswing
+        - sortOrder
+    TempoVideoInput:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ShotCategory"
+        name:
+          type: string
+        event:
+          type: string
+        year:
+          type: integer
+        club:
+          type: string
+        ratio:
+          type: number
+        duration:
+          type: number
+        backswing:
+          type: number
+        downswing:
+          type: number
+        result:
+          type: string
+        youtubeId:
+          type: string
+        clipStartSec:
+          type: number
+        clipEndSec:
+          type: number
+        sortOrder:
+          type: integer
+      required:
+        - category
+        - name
+        - event
+        - year
+        - club
+        - ratio
+        - duration
+        - backswing
+        - downswing
+    TempoVideoPatch:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/ShotCategory"
+        name:
+          type: string
+        event:
+          type: string
+        year:
+          type: integer
+        club:
+          type: string
+        ratio:
+          type: number
+        duration:
+          type: number
+        backswing:
+          type: number
+        downswing:
+          type: number
+        result:
+          type: string
+        youtubeId:
+          type: string
+        clipStartSec:
+          type: number
+        clipEndSec:
+          type: number
+        sortOrder:
+          type: integer

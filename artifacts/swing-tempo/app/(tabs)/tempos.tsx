@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Animated,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +14,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import YoutubePlayer from "react-native-youtube-iframe";
+
+import { useListTempoVideos } from "@workspace/api-client-react";
 
 import { useTempo } from "@/context/TempoContext";
 import {
@@ -106,6 +110,33 @@ function PlayerDetail({
             {player.event} · {player.year}{player.result ? `  ·  ${player.result}` : ""}
           </Text>
         </View>
+
+        {/* Reference swing video — only once a clip has actually been
+            sourced/uploaded to YouTube for this entry (youtubeId is null
+            for most rows until then). Web doesn't get a native player here,
+            so it falls back to an anchor link instead of trying to embed. */}
+        {player.youtubeId && (
+          Platform.OS === "web" ? (
+            <Pressable
+              style={detail.videoWebFallback}
+              onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${player.youtubeId}`)}
+            >
+              <Feather name="youtube" size={16} color={BLUE} />
+              <Text style={detail.videoWebFallbackText}>Watch on YouTube</Text>
+            </Pressable>
+          ) : (
+            <View style={detail.videoWrap}>
+              <YoutubePlayer
+                height={200}
+                videoId={player.youtubeId}
+                initialPlayerParams={{
+                  start: player.clipStartSec ? Math.round(player.clipStartSec) : undefined,
+                  end: player.clipEndSec ? Math.round(player.clipEndSec) : undefined,
+                }}
+              />
+            </View>
+          )
+        )}
 
         {/* Audio mode toggle */}
         <View style={detail.toggleRow}>
@@ -203,11 +234,27 @@ export default function TemposScreen() {
     }).start(() => setSelectedPlayer(null));
   };
 
-  const players = getPlayersByCategory(activeCategory).filter((p) =>
-    search.trim() === "" ||
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.event.toLowerCase().includes(search.toLowerCase())
-  );
+  // Reference tempos live in the database now (admin-editable, so a YouTube
+  // clip can be attached later without a code change/redeploy). The bundled
+  // TEMPO_PLAYERS array is kept only as an offline/error/pre-first-fetch
+  // fallback so the tab is never empty while the request is in flight.
+  const { data: tempoVideos } = useListTempoVideos();
+  const allPlayers: PlayerTempo[] =
+    tempoVideos && tempoVideos.length > 0
+      ? tempoVideos
+      : getPlayersByCategory("tee").concat(
+          getPlayersByCategory("approach"),
+          getPlayersByCategory("shortgame"),
+          getPlayersByCategory("putting"),
+        );
+
+  const players = allPlayers
+    .filter((p) => p.category === activeCategory)
+    .filter((p) =>
+      search.trim() === "" ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.event.toLowerCase().includes(search.toLowerCase())
+    );
 
   const handleStartTempo = () => {
     if (!selectedPlayer) return;
@@ -379,6 +426,9 @@ const detail = StyleSheet.create({
   timelineLabel: { color: MUTED, fontSize: 10, fontFamily: "Inter_500Medium", letterSpacing: 0.8 },
   eventBadge:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0A1A2A", borderWidth: StyleSheet.hairlineWidth, borderColor: "#1A3A5A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 28 },
   eventText:     { color: BLUE, fontSize: 12, fontFamily: "Inter_500Medium" },
+  videoWrap:     { borderRadius: 14, overflow: "hidden", marginBottom: 24 },
+  videoWebFallback: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: CARD_BG, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, borderRadius: 14, paddingVertical: 16, marginBottom: 24 },
+  videoWebFallbackText: { color: BLUE, fontSize: 14, fontFamily: "Inter_600SemiBold" },
   toggleRow:     { flexDirection: "row", backgroundColor: CARD_BG, borderRadius: 14, padding: 4, marginBottom: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   toggleBtn:     { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 11 },
   toggleActive:  { backgroundColor: BLUE },

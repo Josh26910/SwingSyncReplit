@@ -11,7 +11,11 @@ export interface PlayerTempo {
   duration: number;    // start to impact, seconds
   backswing: number;   // seconds
   downswing: number;   // seconds
-  result?: string;
+  result?: string | null;
+  /** YouTube video id (not the full URL). Undefined until a clip is sourced. */
+  youtubeId?: string | null;
+  clipStartSec?: number | null;
+  clipEndSec?: number | null;
 }
 
 export const CATEGORY_LABELS: Record<ShotCategory, string> = {

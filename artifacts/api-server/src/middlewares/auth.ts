@@ -47,3 +47,22 @@ export async function requireAuth(
     res.status(401).json({ error: "Invalid or expired token." });
   }
 }
+
+/**
+ * Gates the tempo-videos admin endpoints behind a single shared secret
+ * (ADMIN_TOKEN) rather than full user-role auth — there's exactly one
+ * operator managing this content, not a multi-admin system worth building
+ * out RBAC for.
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const expected = process.env.ADMIN_TOKEN;
+  if (!expected) {
+    throw new Error("ADMIN_TOKEN must be set. Did you forget to configure it?");
+  }
+  const provided = req.headers["x-admin-token"];
+  if (provided !== expected) {
+    res.status(401).json({ error: "Invalid admin token." });
+    return;
+  }
+  next();
+}
