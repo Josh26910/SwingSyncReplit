@@ -1,6 +1,7 @@
 # SwingTempo — Security & Feature Audit
 
 **Date:** 2026-08-04
+**Status:** all findings resolved except **F5 (password reset)**, which is blocked on a transactional email provider — see that section. Fixes landed on `claude/bug-fixes-presets-profile-3drlo2`.
 **Scope:** `artifacts/api-server`, `artifacts/swing-tempo`, `lib/db`, `lib/api-zod`, `lib/api-client-react`, deployment config.
 **Method:** full read of every server route, middleware, schema, and client screen; `pnpm audit`; deployment/env config review. No live pentest was run — this is a code-level audit, so runtime-only issues (TLS config, WAF, infra) are out of scope.
 
@@ -10,25 +11,25 @@
 
 ### Severity summary
 
-| # | Severity | Finding |
-|---|----------|---------|
-| S1 | **High** | No rate limiting anywhere — login/signup brute force + bcrypt CPU exhaustion |
-| S2 | **High** | `swing_records.id` is a global primary key, so any user can permanently block another user's records from syncing |
-| S3 | **High** | Password change does not invalidate existing tokens; no revocation of any kind |
-| S4 | **Medium** | Admin token compared with `!==` (non-constant-time) and never expires/rotates |
-| S5 | **Medium** | `cors()` with no options — every origin can call every endpoint, including admin routes |
-| S6 | **Medium** | Reflected XSS in the static landing server via `X-Forwarded-Host` |
-| S7 | **Medium** | Unvalidated numeric/date fields in `/api/sync` crash the request handler (500) |
-| S8 | **Medium** | `/api/sync` has no array-size limit, no transaction, and issues one query per element |
-| S9 | **Medium** | Signup leaks whether an email is registered (account enumeration) |
-| S10 | **Low** | No security headers on either server (no helmet, no CSP/HSTS/X-Content-Type-Options) |
-| S11 | **Low** | JWT verification does not pin the algorithm and sets no `iss`/`aud` |
-| S12 | **Low** | Malformed UUID in `/api/tempo-videos/:id` produces an unhandled 500 |
-| S13 | **Low** | No global error handler; Express's default handler is the fallback |
-| S14 | **Low** | Auth token stored in `localStorage` on web (XSS-readable) |
-| S15 | **Low** | 27 known-vulnerable transitive dependencies (17 high) |
-| S16 | **Info** | `cookie-parser` shipped as a dependency but never used |
-| S17 | **Info** | Public `GET /api/tempo-videos` is unauthenticated, unpaginated, and uncached |
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| S1 | **High** | No rate limiting anywhere — login/signup brute force + bcrypt CPU exhaustion | Fixed |
+| S2 | **High** | `swing_records.id` is a global primary key, so any user can permanently block another user's records from syncing | Fixed |
+| S3 | **High** | Password change does not invalidate existing tokens; no revocation of any kind | Fixed |
+| S4 | **Medium** | Admin token compared with `!==` (non-constant-time) and never expires/rotates | Fixed |
+| S5 | **Medium** | `cors()` with no options — every origin can call every endpoint, including admin routes | Fixed |
+| S6 | **Medium** | Reflected XSS in the static landing server via `X-Forwarded-Host` | Fixed |
+| S7 | **Medium** | Unvalidated numeric/date fields in `/api/sync` crash the request handler (500) | Fixed |
+| S8 | **Medium** | `/api/sync` has no array-size limit, no transaction, and issues one query per element | Fixed |
+| S9 | **Medium** | Signup leaks whether an email is registered (account enumeration) | Fixed |
+| S10 | **Low** | No security headers on either server (no helmet, no CSP/HSTS/X-Content-Type-Options) | Fixed |
+| S11 | **Low** | JWT verification does not pin the algorithm and sets no `iss`/`aud` | Fixed |
+| S12 | **Low** | Malformed UUID in `/api/tempo-videos/:id` produces an unhandled 500 | Fixed |
+| S13 | **Low** | No global error handler; Express's default handler is the fallback | Fixed |
+| S14 | **Low** | Auth token stored in `localStorage` on web (XSS-readable) | Accepted |
+| S15 | **Low** | 27 known-vulnerable transitive dependencies (17 high) | Partly fixed |
+| S16 | **Info** | `cookie-parser` shipped as a dependency but never used | Fixed |
+| S17 | **Info** | Public `GET /api/tempo-videos` is unauthenticated, unpaginated, and uncached | Fixed |
 
 ---
 
@@ -221,6 +222,26 @@ Almost all sit under `@expo/cli`, i.e. build-time tooling rather than shipped ru
 
 ## Part 2 — Feature completeness & implementation quality
 
+### Resolution summary
+
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| F1 | **High** | Fabricated statistics shown to signed-in users | Fixed |
+| F2 | **High** | Swing library is in-memory only; imports lost on restart | Fixed |
+| F3 | **High** | Practice time double-counted and inflated by app-idle time | Fixed |
+| F4 | **Medium** | "Pro Swings" tab renders dead, non-interactive cards | Fixed |
+| F5 | **Medium** | Password reset does not exist | **Blocked** — needs an email provider |
+| F6 | **Medium** | No account deletion or data export | Fixed |
+| F7 | **Medium** | All dates computed in UTC, not local time | Fixed |
+| F8 | **Medium** | Swing records can never be deleted; cap bypassed by sync | Fixed |
+| F12 | **Medium** | Zero tests, zero CI | Fixed |
+| F9 | **Low** | Cosmetic "Pro" badge and ad placeholder with no product behind them | Fixed |
+| F10 | **Low** | Video export is a share sheet, not an export | Fixed |
+| F11 | **Low** | Clip start/end plumbing built but only half-wired | Fixed |
+| F13 | **Low** | Documentation is a half-filled template | Fixed |
+
+---
+
 ### What's genuinely done and done well
 
 - **Tempo engine** (`hooks/useTempoEngine.ts`). Absolute-time scheduler on a 10 ms tick, re-deriving position from wall-clock each pass rather than chaining `setTimeout`. This is the correct design for audio timing and the comment explains why. Best code in the repo.
@@ -393,28 +414,24 @@ Given the number of gotchas this audit found (UTC dates, double-counted sessions
 
 ---
 
-## Recommended order of work
+## What was done
 
-**Before any public release:**
+Every finding above is resolved except **F5 (password reset)**, which cannot be built without a transactional email provider — the same constraint that made auth password-based in the first place (see `replit.md`'s architecture notes). It remains the largest known gap: a forgotten password still means a lost account.
 
-1. **F1** — delete or compute the fake profile stats (visible, misleading, ~30 min)
-2. **S1** — add rate limiting (highest-value security fix, ~1 h)
-3. **F2** — persist the swing library (largest functional gap)
-4. **F3** — fix double-counted/inflated practice time, and clamp server-side
-5. **S3** — token versioning so password change actually revokes
-6. **S2** — composite key on `swing_records`
+Two entries are closed as judgement calls rather than code changes:
 
-**Before App Store submission:**
+- **S14** (auth token in `localStorage` on web) is **accepted**. Native uses the OS keychain via `expo-secure-store`; only the web preview falls back to AsyncStorage. Fixing it properly means an httpOnly refresh cookie and CSRF protection, which isn't justified while web is a preview surface. Revisit if web becomes a real target.
+- **S15** (vulnerable dependencies) is **partly fixed**: the one direct dependency (`esbuild`) was bumped. The remainder sit under `@expo/cli` build tooling rather than shipped runtime code and move on Expo's release cadence; `pnpm run audit:prod` now runs in CI so they stay visible.
 
-7. **F6** — account deletion (hard requirement, guideline 5.1.1(v))
-8. **F5** — password reset (needs the email provider first)
-9. **F9** — remove the Pro badge and ad placeholder, or build them
+### Notable follow-ups created by these fixes
 
-**Then:**
+- **A database migration is required** for any database with existing rows: `lib/db/migrations/2026-08-04-swing-records-composite-key.sql`, run *before* the next `drizzle-kit push`. A bare push would drop `swing_records.id` rather than rename it, losing every record's sync identity.
+- **`JWT_SECRET` and `ADMIN_TOKEN` must now be at least 32 characters.** They are validated at boot, so a short secret stops the server starting rather than silently weakening it.
+- **Existing auth tokens are invalidated.** They were signed before token versioning, carry no `ver` claim, and are rejected on the next request — every signed-in user signs in once more.
+- **Set `CORS_ALLOWED_ORIGINS`** if the web build is served from anywhere other than `$REPLIT_DEV_DOMAIN`; browsers on other origins are now refused.
 
-10. **S4, S5, S6, S7** — timing-safe admin compare, CORS allowlist, host escaping, input bounds
-11. **F7** — local-time dates (migration needed, so plan it)
-12. **F8, F4, F10, F11** — record deletion, Pro Swings tab, export labelling, clip-end
-13. **S8** — batch + transact the sync loop
-14. **F12** — tests + CI
-15. **S10–S17** — headers, alg pinning, dep bumps, cleanup
+### Verification
+
+`pnpm run typecheck` passes across all nine workspace projects — including three type errors that predated this work (`TempoDial` indexing `TEMPOS` with `"custom"`, which would have thrown at runtime the moment a player tempo was loaded; a bad cast in `useColors`; an invalid router path in `welcome.tsx`).
+
+`pnpm run test` runs 54 unit tests across `swingAnalysis`, `dates`, `sessions` and `swingHistory` — the four modules whose bugs are silent rather than loud. Several encode the specific regressions found here: the day cap that stops an inflated duration becoming permanent, the 500-record cap holding on the sync write-back path, local-vs-UTC date rollover, and `computeCareerStats` returning nulls rather than invented numbers.
