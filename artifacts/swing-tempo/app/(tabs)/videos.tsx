@@ -30,7 +30,9 @@ import {
   type Swing,
   type SwingOrigin,
 } from "@/context/SwingLibraryContext";
-import { TEMPO_PLAYERS } from "@/data/tempoPlayers";
+import { useTempo } from "@/context/TempoContext";
+import { TEMPO_PLAYERS, type PlayerTempo } from "@/data/tempoPlayers";
+import { persistVideoFile } from "@/utils/swingLibraryStorage";
 import { generateThumbnail } from "@/utils/thumbnails";
 
 const BLUE   = "#1A8CFF";
@@ -53,7 +55,31 @@ interface CompareSelection {
 
 export default function VideosScreen() {
   const insets = useSafeAreaInsets();
-  const { swings, proSwings, addSwing, updateSwing, setActive } = useSwingLibrary();
+  const { swings, proSwings, addSwing, updateSwing, removeSwing, setActive } = useSwingLibrary();
+  const { setCustomTempo, setSelectedTempo, setIsPlaying } = useTempo();
+
+  /**
+   * Loads a reference pro's tempo into the trainer and starts it. These
+   * cards used to be inert <View>s with no press handler at all — a wall of
+   * stat blocks in a tab whose entire premise is "tap a swing to work on
+   * it". They now do the same thing the Tempos tab's Start Tempo button
+   * does, which is the only meaningful action available for an entry we
+   * hold no video for.
+   */
+  const startProTempo = (player: PlayerTempo) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setCustomTempo(player);
+    setSelectedTempo("custom");
+    setIsPlaying(true);
+    router.push("/(tabs)");
+  };
+
+  const confirmRemoveSwing = (origin: SwingOrigin, swing: Swing) => {
+    Alert.alert("Delete Swing", `Remove "${swing.name}" from your library?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => removeSwing(origin, swing.id) },
+    ]);
+  };
 
   const [tab, setTab] = useState<"pro" | "mine">("pro");
   const [compareMode, setCompareMode] = useState(false);
@@ -108,15 +134,21 @@ export default function VideosScreen() {
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
       const list = origin === "mine" ? swings : proSwings;
+      const id = Date.now().toString();
+      // ImagePicker returns a URI in the OS cache directory, which iOS and
+      // Android are both free to reclaim — copy it somewhere durable before
+      // recording it, or the library persists a path to a file that may not
+      // survive until the next launch.
+      const uri = await persistVideoFile(asset.uri, id);
       const newSwing: Swing = {
-        id:      Date.now().toString(),
-        uri:     asset.uri,
+        id,
+        uri,
         name:    `${origin === "pro" ? "Pro Swing" : "Swing"} ${list.length + 1}`,
         markers: EMPTY_MARKERS,
       };
       addSwing(origin, newSwing);
       setActive(origin, newSwing.id);
-      generateThumbnail(asset.uri).then((thumbnailUri) => {
+      generateThumbnail(uri).then((thumbnailUri) => {
         if (thumbnailUri) updateSwing(origin, newSwing.id, { thumbnailUri });
       });
       router.push("/(tabs)/analysis");
@@ -143,6 +175,7 @@ export default function VideosScreen() {
         key={swing.id}
         style={[styles.swingCard, compareMode && isSelected && styles.swingCardSelected]}
         onPress={() => openSwing(origin, swing)}
+        onLongPress={() => !compareMode && confirmRemoveSwing(origin, swing)}
       >
         <View style={styles.swingThumb}>
           {swing.thumbnailUri ? (
@@ -262,7 +295,10 @@ export default function VideosScreen() {
             </>
           }
           renderItem={({ item }) => (
-            <View style={styles.proCard}>
+            <Pressable
+              style={({ pressed }) => [styles.proCard, pressed && { opacity: 0.85 }]}
+              onPress={() => startProTempo(item)}
+            >
               <View style={styles.proAvatar}>
                 <Feather name="user" size={22} color={BLUE} />
               </View>
@@ -284,7 +320,8 @@ export default function VideosScreen() {
                   </View>
                 </View>
               </View>
-            </View>
+              <Feather name="play-circle" size={20} color={BLUE} />
+            </Pressable>
           )}
         />
       )}

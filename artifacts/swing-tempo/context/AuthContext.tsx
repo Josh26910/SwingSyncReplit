@@ -1,11 +1,14 @@
 import {
   changePassword as apiChangePassword,
+  deleteAccount as apiDeleteAccount,
+  exportAccountData as apiExportAccountData,
   getCurrentUser as apiGetCurrentUser,
   login as apiLogin,
   signup as apiSignup,
   updateProfile as apiUpdateProfile,
   setAuthTokenGetter,
   setBaseUrl,
+  type AccountExport,
   type AuthUser,
 } from "@workspace/api-client-react";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
@@ -23,6 +26,10 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   updateName: (name: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Permanently deletes the account server-side, then signs out locally. */
+  deleteAccount: (password: string) => Promise<void>;
+  /** Everything the server holds for this account. */
+  exportData: () => Promise<AccountExport>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,7 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setUser(await apiGetCurrentUser());
       } catch {
-        // Stored token is no longer valid (expired/revoked) — discard it.
+        // Stored token is no longer valid (expired, or revoked by a password
+        // change on another device) — discard it.
         await deleteToken(TOKEN_KEY);
       } finally {
         setIsLoading(false);
@@ -76,12 +84,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    await apiChangePassword({ currentPassword, newPassword });
+    // Changing the password revokes every token issued before it, including
+    // the one this device is holding — so the replacement the server hands
+    // back has to be persisted or the next request 401s.
+    const res = await apiChangePassword({ currentPassword, newPassword });
+    await setToken(TOKEN_KEY, res.token);
+    setUser(res.user);
   }, []);
+
+  const deleteAccount = useCallback(async (password: string) => {
+    await apiDeleteAccount({ password });
+    await deleteToken(TOKEN_KEY);
+    setUser(null);
+  }, []);
+
+  const exportData = useCallback(() => apiExportAccountData(), []);
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, signUp, signIn, signOut, updateName, changePassword }}
+      value={{
+        user,
+        isLoading,
+        signUp,
+        signIn,
+        signOut,
+        updateName,
+        changePassword,
+        deleteAccount,
+        exportData,
+      }}
     >
       {children}
     </AuthContext.Provider>

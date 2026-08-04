@@ -16,9 +16,10 @@ import colors from "@/constants/colors";
  */
 export function useColors() {
   const scheme = useColorScheme();
-  const palette =
-    scheme === "dark" && "dark" in colors
-      ? (colors as Record<string, typeof colors.light>).dark
-      : colors.light;
+  // `colors` also carries non-palette values (radius), so it can't be cast
+  // straight to Record<string, Palette> — go through unknown and pick the
+  // dark key explicitly.
+  const withDark = colors as unknown as { dark?: typeof colors.light };
+  const palette = scheme === "dark" && withDark.dark ? withDark.dark : colors.light;
   return { ...palette, radius: colors.radius };
 }

@@ -3,13 +3,28 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { GameMode } from "@/context/TempoContext";
 import type { SwingOrigin } from "@/context/SwingLibraryContext";
 import type { ShotCategory } from "@/data/tempoPlayers";
+import { todayIso } from "@/utils/dates";
 
 const RECORDS_KEY = "swingTempo:swingHistory";
+/**
+ * Ids the user deleted locally, queued until a sync can tell the server.
+ * Without this a deleted record just comes back on the next pull, since
+ * sync replaces local storage with the server's full set.
+ */
+const PENDING_DELETES_KEY = "swingTempo:swingHistoryDeletes";
+
+/**
+ * Matches the server's SyncPayload maxItems. Enforced inside
+ * saveSwingRecords rather than at the call site — when the cap lived in
+ * addSwingRecord only, the sync write-back path bypassed it entirely and
+ * the local store grew without limit for exactly the signed-in users the
+ * cap was meant to protect.
+ */
 const MAX_RECORDS = 500;
 
 export interface SwingRecord {
   id: string;
-  date: string;        // ISO date string YYYY-MM-DD
+  date: string;        // ISO date string YYYY-MM-DD (device-local calendar)
   timestamp: number;    // Date.now() when recorded
   swingId: string;      // links back to SwingLibraryContext's Swing.id
   origin: SwingOrigin;
@@ -33,7 +48,9 @@ export async function getSwingRecords(): Promise<SwingRecord[]> {
 
 export async function saveSwingRecords(records: SwingRecord[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+    // Keep the most recent MAX_RECORDS. Every write path goes through here,
+    // including the post-sync merge, so the cap actually holds.
+    await AsyncStorage.setItem(RECORDS_KEY, JSON.stringify(records.slice(-MAX_RECORDS)));
   } catch {
     /* ignore */
   }
@@ -47,11 +64,49 @@ export async function addSwingRecord(
   records.push({
     ...record,
     id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
-    date: new Date(now).toISOString().slice(0, 10),
+    date: todayIso(),
     timestamp: now,
   });
-  // Cap history length so AsyncStorage doesn't grow unbounded.
-  await saveSwingRecords(records.slice(-MAX_RECORDS));
+  await saveSwingRecords(records);
+}
+
+/** Ids deleted locally but not yet confirmed removed server-side. */
+export async function getPendingDeletes(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_DELETES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function savePendingDeletes(ids: string[]): Promise<void> {
+  try {
+    // Bounded by the same cap — the server rejects longer lists anyway.
+    await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(ids.slice(-MAX_RECORDS)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Removes a record locally and queues the id so the next sync deletes it
+ * server-side too.
+ */
+export async function deleteSwingRecord(id: string): Promise<void> {
+  const [records, pending] = await Promise.all([getSwingRecords(), getPendingDeletes()]);
+  await Promise.all([
+    saveSwingRecords(records.filter((r) => r.id !== id)),
+    savePendingDeletes(pending.includes(id) ? pending : [...pending, id]),
+  ]);
+}
+
+/** Called once a sync has successfully carried the deletions to the server. */
+export async function clearPendingDeletes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const pending = await getPendingDeletes();
+  const done = new Set(ids);
+  await savePendingDeletes(pending.filter((id) => !done.has(id)));
 }
 
 export function getRecordsForDate(records: SwingRecord[], date: string): SwingRecord[] {
@@ -130,3 +185,33 @@ export function computeClubBreakdown(records: SwingRecord[]): ClubBreakdown[] {
     .sort((a, b) => b.count - a.count);
 }
 
+/** All-time headline numbers for the profile summary card. */
+export interface CareerStats {
+  totalSwings: number;
+  bestRatio: number | null;
+  bestAccuracy: number | null;
+  avgAccuracy: number | null;
+}
+
+/**
+ * "Best" is the swing whose ratio landed closest to its mode's gold
+ * standard (3:1 long, 2:1 short) — a raw max would just surface the most
+ * extreme outlier, which is the opposite of good tempo.
+ */
+export function computeCareerStats(records: SwingRecord[]): CareerStats {
+  if (records.length === 0) {
+    return { totalSwings: 0, bestRatio: null, bestAccuracy: null, avgAccuracy: null };
+  }
+
+  let best = records[0];
+  for (const r of records) if (r.accuracy > best.accuracy) best = r;
+
+  const avgAccuracy = records.reduce((sum, r) => sum + r.accuracy, 0) / records.length;
+
+  return {
+    totalSwings: records.length,
+    bestRatio: best.ratio,
+    bestAccuracy: best.accuracy,
+    avgAccuracy: Math.round(avgAccuracy),
+  };
+}

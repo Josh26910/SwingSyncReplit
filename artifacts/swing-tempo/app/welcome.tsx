@@ -14,19 +14,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ContributionGrid } from "@/components/ContributionGrid";
 import { useAuth } from "@/context/AuthContext";
+import { toLocalIsoDate } from "@/utils/dates";
 import {
   computeStreak,
-  finalizeSession,
   getSessions,
-  recordSessionStart,
   type Session,
 } from "@/utils/sessions";
 
 const BLUE = "#1A8CFF";
 
 function computeTotalThisMonth(sessions: Session[]): number {
-  const now   = new Date();
-  const yymm  = now.toISOString().slice(0, 7);
+  // Local calendar month, not UTC — toISOString() would put the first hours
+  // of the 1st (or last hours of the 31st) in the wrong month for anyone
+  // east of Greenwich.
+  const yymm  = toLocalIsoDate(new Date()).slice(0, 7);
   return sessions
     .filter((s) => s.date.startsWith(yymm))
     .reduce((sum, s) => sum + s.duration, 0);
@@ -42,7 +43,6 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     (async () => {
-      await finalizeSession();
       const s = await getSessions();
       setSessions(s);
       Animated.parallel([
@@ -57,9 +57,14 @@ export default function WelcomeScreen() {
     Animated.sequence([
       Animated.timing(btnScale, { toValue: 0.96, duration: 80,  useNativeDriver: true }),
       Animated.timing(btnScale, { toValue: 1,    duration: 120, useNativeDriver: true }),
-    ]).start(async () => {
-      await recordSessionStart();
-      router.replace("/(tabs)/");
+    ]).start(() => {
+      // No session bookkeeping here any more. This used to call
+      // recordSessionStart(), whose matching finalizeSession() only ran on
+      // the *next* app launch — so every hour the app sat closed was
+      // credited as practice time, on top of the seconds
+      // useActiveTimeTracker was already counting. That hook is now the
+      // single source of practice time.
+      router.replace("/(tabs)");
     });
   }, [btnScale]);
 
@@ -108,12 +113,6 @@ export default function WelcomeScreen() {
 
           <ContributionGrid sessions={sessions} weeks={26} />
         </Animated.View>
-
-        {/* ── Ad placeholder ─────────────────────────────────── */}
-        <View style={styles.adPlaceholder}>
-          <Feather name="image" size={20} color="#333" />
-          <Text style={styles.adText}>Advertisement</Text>
-        </View>
 
         {/* ── Start Session button ───────────────────────────── */}
         <Animated.View style={{ transform: [{ scale: btnScale }], width: "100%" }}>
@@ -214,25 +213,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_500Medium",
     color: "#666666",
-  },
-  adPlaceholder: {
-    width: "100%",
-    height: 80,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1E1E1E",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 20,
-  },
-  adText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: "#333333",
-    letterSpacing: 1,
   },
   startBtn: {
     flexDirection: "row",

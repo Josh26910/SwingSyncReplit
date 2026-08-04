@@ -5,21 +5,46 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SwingRecordDtoClub } from './swingRecordDtoClub';
 import type { SwingRecordDtoGameMode } from './swingRecordDtoGameMode';
 import type { SwingRecordDtoOrigin } from './swingRecordDtoOrigin';
 
 export interface SwingRecordDto {
-  /** Client-generated id, stable across sync */
+  /**
+     * Client-generated id, unique per account (not globally)
+     * @minLength 1
+     * @maxLength 64
+     */
   id: string;
-  /** ISO date, YYYY-MM-DD */
+  /**
+     * ISO date, YYYY-MM-DD
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
   date: string;
-  /** Epoch milliseconds */
+  /**
+     * Epoch milliseconds. Bounded to the range JS Date can represent.
+     * @minimum 0
+     * @maximum 8640000000000000
+     */
   timestamp: bigint;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
   swingId: string;
   origin: SwingRecordDtoOrigin;
+  /** @maxLength 120 */
   golferName: string;
   gameMode: SwingRecordDtoGameMode;
-  club: string | null;
+  club: SwingRecordDtoClub;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
   ratio: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
   accuracy: number;
 }

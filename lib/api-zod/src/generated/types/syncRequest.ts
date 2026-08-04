@@ -8,9 +8,16 @@
 import type { PracticeSessionDto } from './practiceSessionDto';
 import type { SwingRecordDto } from './swingRecordDto';
 
-export interface SyncPayload {
+export interface SyncRequest {
   /** @maxItems 3650 */
   sessions: PracticeSessionDto[];
   /** @maxItems 500 */
   swingRecords: SwingRecordDto[];
+  /**
+     * Ids the user deleted locally. The server removes these from the account before merging, so a deletion propagates instead of the record being resurrected by the next pull.
+     * @maxItems 500
+     * @items.minLength 1
+     * @items.maxLength 64
+     */
+  deletedSwingRecordIds?: string[];
 }

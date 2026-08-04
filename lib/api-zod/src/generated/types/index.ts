@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accountExport';
 export * from './authResponse';
 export * from './authUser';
 export * from './changePasswordRequest';
+export * from './deleteAccountRequest';
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './listTempoVideosParams';
@@ -17,9 +19,11 @@ export * from './practiceSessionDto';
 export * from './shotCategory';
 export * from './signupRequest';
 export * from './swingRecordDto';
+export * from './swingRecordDtoClub';
 export * from './swingRecordDtoGameMode';
 export * from './swingRecordDtoOrigin';
 export * from './syncPayload';
+export * from './syncRequest';
 export * from './tempoVideoDto';
 export * from './tempoVideoInput';
 export * from './tempoVideoPatch';

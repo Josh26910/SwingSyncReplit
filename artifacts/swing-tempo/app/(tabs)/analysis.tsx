@@ -457,10 +457,15 @@ export default function AnalysisScreen() {
     await seekToZeroAndResetClock();
   };
 
-  // v1: share the original clip via the OS share sheet. Burning the tempo
-  // overlay/watermark into an actual re-encoded video file needs a native
-  // video-processing toolchain (ffmpeg-kit or similar) that Expo Go can't
-  // load — revisit once the app has a custom dev client.
+  // Shares the ORIGINAL clip via the OS share sheet — no tempo overlay, no
+  // markers, nothing this screen computed. Burning the analysis into a real
+  // re-encoded video needs a native toolchain (ffmpeg-kit or similar) that
+  // Expo Go can't load; revisit once the app has a custom dev client.
+  //
+  // The button is labelled "Share Clip" rather than "Export" precisely
+  // because of that: "Export" implied the output carried the analysis, so a
+  // user who tried it got back a plain video and reasonably concluded the
+  // feature was broken.
   const [isExporting, setIsExporting] = useState(false);
   const handleExport = async () => {
     if (!activeSwing || !analysis) return;
@@ -481,7 +486,7 @@ export default function AnalysisScreen() {
         mimeType: "video/mp4",
       });
     } catch (err) {
-      Alert.alert("Export Failed", err instanceof Error ? err.message : "Something went wrong.");
+      Alert.alert("Share Failed", err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsExporting(false);
     }
@@ -882,13 +887,13 @@ export default function AnalysisScreen() {
                   <Feather name="download" size={20} color={BLUE} style={{ marginRight: 8 }} />
                 )}
                 <Text style={[styles.actionBtnLabel, { color: BLUE }]}>
-                  {isExporting ? "Sharing..." : "Export"}
+                  {isExporting ? "Sharing..." : "Share Clip"}
                 </Text>
               </Pressable>
             </View>
 
             {!analysis && (
-              <Text style={styles.allSetHint}>Set all 3 markers to enable Preview &amp; Export</Text>
+              <Text style={styles.allSetHint}>Set all 3 markers to enable Preview &amp; Share</Text>
             )}
 
             <Pressable

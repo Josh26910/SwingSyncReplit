@@ -20,15 +20,18 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountExport,
   AuthResponse,
   AuthUser,
   ChangePasswordRequest,
+  DeleteAccountRequest,
   ErrorResponse,
   HealthStatus,
   ListTempoVideosParams,
   LoginRequest,
   SignupRequest,
   SyncPayload,
+  SyncRequest,
   TempoVideoDto,
   TempoVideoInput,
   TempoVideoPatch,
@@ -427,6 +430,154 @@ export const useUpdateProfile = <TError = ErrorType<ErrorResponse>,
       return useMutation(getUpdateProfileMutationOptions(options));
     }
 
+export const getDeleteAccountUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * Requires the account password to be re-entered. Deleting the user row cascades to practice_sessions and swing_records, so nothing is left behind. Irreversible — the client should confirm before calling.
+ * @summary Permanently delete the current account and all of its data
+ */
+export const deleteAccount = async (deleteAccountRequest: DeleteAccountRequest, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAccountUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deleteAccountRequest)
+  }
+);}
+
+
+
+
+export const getDeleteAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAccount>>, TError,{data: BodyType<DeleteAccountRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAccount>>, TError,{data: BodyType<DeleteAccountRequest>}, TContext> => {
+
+const mutationKey = ['deleteAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAccount>>, {data: BodyType<DeleteAccountRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  deleteAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAccountMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAccount>>>
+    export type DeleteAccountMutationBody = BodyType<DeleteAccountRequest>
+    export type DeleteAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Permanently delete the current account and all of its data
+ */
+export const useDeleteAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAccount>>, TError,{data: BodyType<DeleteAccountRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAccount>>,
+        TError,
+        {data: BodyType<DeleteAccountRequest>},
+        TContext
+      > => {
+      return useMutation(getDeleteAccountMutationOptions(options));
+    }
+
+export const getExportAccountDataUrl = () => {
+
+
+
+
+  return `/api/auth/me/export`
+}
+
+/**
+ * @summary Export everything stored server-side for the current account
+ */
+export const exportAccountData = async ( options?: RequestInit): Promise<AccountExport> => {
+
+  return customFetch<AccountExport>(getExportAccountDataUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportAccountDataQueryKey = () => {
+    return [
+    `/api/auth/me/export`
+    ] as const;
+    }
+
+
+export const getExportAccountDataQueryOptions = <TData = Awaited<ReturnType<typeof exportAccountData>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportAccountData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportAccountDataQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportAccountData>>> = ({ signal }) => exportAccountData({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportAccountData>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportAccountDataQueryResult = NonNullable<Awaited<ReturnType<typeof exportAccountData>>>
+export type ExportAccountDataQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Export everything stored server-side for the current account
+ */
+
+export function useExportAccountData<TData = Awaited<ReturnType<typeof exportAccountData>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportAccountData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportAccountDataQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getChangePasswordUrl = () => {
 
 
@@ -436,11 +587,11 @@ export const getChangePasswordUrl = () => {
 }
 
 /**
- * @summary Change the current user's password
+ * Changing the password revokes every token issued before it (the account's token version is bumped), so the response carries a freshly signed token for the calling device. Clients must persist it or they will be signed out on their next request.
  */
-export const changePassword = async (changePasswordRequest: ChangePasswordRequest, options?: RequestInit): Promise<AuthUser> => {
+export const changePassword = async (changePasswordRequest: ChangePasswordRequest, options?: RequestInit): Promise<AuthResponse> => {
 
-  return customFetch<AuthUser>(getChangePasswordUrl(),
+  return customFetch<AuthResponse>(getChangePasswordUrl(),
   {
     ...options,
     method: 'PATCH',
@@ -483,10 +634,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ChangePasswordMutationBody = BodyType<ChangePasswordRequest>
     export type ChangePasswordMutationError = ErrorType<ErrorResponse>
 
-    /**
- * @summary Change the current user's password
- */
-export const useChangePassword = <TError = ErrorType<ErrorResponse>,
+    export const useChangePassword = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changePassword>>, TError,{data: BodyType<ChangePasswordRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof changePassword>>,
@@ -509,14 +657,14 @@ export const getSyncUrl = () => {
  * Local-first sync: the client sends its current local snapshot, the server upserts it (sessions merged by max duration/swings per day, swing records deduped by id) and returns the full merged dataset for this account. The client replaces its local storage with the response.
  * @summary Push local practice sessions/swing records, get back the merged authoritative set
  */
-export const sync = async (syncPayload: SyncPayload, options?: RequestInit): Promise<SyncPayload> => {
+export const sync = async (syncRequest: SyncRequest, options?: RequestInit): Promise<SyncPayload> => {
 
   return customFetch<SyncPayload>(getSyncUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(syncPayload)
+    body: JSON.stringify(syncRequest)
   }
 );}
 
@@ -524,8 +672,8 @@ export const sync = async (syncPayload: SyncPayload, options?: RequestInit): Pro
 
 
 export const getSyncMutationOptions = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncPayload>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncRequest>}, TContext> => {
 
 const mutationKey = ['sync'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -537,7 +685,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sync>>, {data: BodyType<SyncPayload>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sync>>, {data: BodyType<SyncRequest>}> = (props) => {
           const {data} = props ?? {};
 
           return  sync(data,requestOptions)
@@ -551,18 +699,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type SyncMutationResult = NonNullable<Awaited<ReturnType<typeof sync>>>
-    export type SyncMutationBody = BodyType<SyncPayload>
+    export type SyncMutationBody = BodyType<SyncRequest>
     export type SyncMutationError = ErrorType<ErrorResponse>
 
     /**
  * @summary Push local practice sessions/swing records, get back the merged authoritative set
  */
 export const useSync = <TError = ErrorType<ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncPayload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sync>>, TError,{data: BodyType<SyncRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof sync>>,
         TError,
-        {data: BodyType<SyncPayload>},
+        {data: BodyType<SyncRequest>},
         TContext
       > => {
       return useMutation(getSyncMutationOptions(options));

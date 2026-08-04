@@ -9,7 +9,8 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 
-import { TEMPOS, TempoKey, SwingPhase } from "@/context/TempoContext";
+import { getEffectiveDef, TempoKey, SwingPhase } from "@/context/TempoContext";
+import type { PlayerTempo } from "@/data/tempoPlayers";
 import { GolferSvg } from "./GolferSvg";
 
 const SIZE = 280;
@@ -91,10 +92,16 @@ interface TempoDialProps {
   tempo: TempoKey;
   phase: SwingPhase;
   cycleProgress: number;
+  /** Required when `tempo` is "custom" — the loaded reference-pro tempo. */
+  customTempo?: PlayerTempo | null;
 }
 
-export function TempoDial({ tempo, phase, cycleProgress }: TempoDialProps) {
-  const def = TEMPOS[tempo];
+export function TempoDial({ tempo, phase, cycleProgress, customTempo }: TempoDialProps) {
+  // TEMPOS has no "custom" entry, so indexing it directly returned undefined
+  // and threw on the next property access the moment a player tempo was
+  // loaded. getEffectiveDef resolves custom against the player data and
+  // falls back to a real preset when there is none.
+  const def = getEffectiveDef(tempo, customTempo ?? null);
   const cycleDuration = def.impactMs + 700;
   const topN  = def.topMs    / cycleDuration;
   const impN  = def.impactMs / cycleDuration;

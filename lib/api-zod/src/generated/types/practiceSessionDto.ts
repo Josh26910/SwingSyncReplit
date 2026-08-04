@@ -7,10 +7,21 @@
  */
 
 export interface PracticeSessionDto {
-  /** ISO date, YYYY-MM-DD */
+  /**
+     * ISO date, YYYY-MM-DD
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
   date: string;
-  /** Seconds practiced that day */
+  /**
+     * Seconds practiced that day, capped at one full day
+     * @minimum 0
+     * @maximum 86400
+     */
   duration: number;
-  /** Swings analyzed that day */
+  /**
+     * Swings analyzed that day
+     * @minimum 0
+     * @maximum 100000
+     */
   swings?: number;
 }

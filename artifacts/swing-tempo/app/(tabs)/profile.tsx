@@ -18,6 +18,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import * as Clipboard from "expo-clipboard";
+
 import { ContributionGrid } from "@/components/ContributionGrid";
 import { useAuth } from "@/context/AuthContext";
 import { useSwingLibrary } from "@/context/SwingLibraryContext";
@@ -30,10 +32,13 @@ import {
   getTodaySession,
   type Session,
 } from "@/utils/sessions";
+import { daysAgoIso } from "@/utils/dates";
 import {
+  computeCareerStats,
   computeClubBreakdown,
   computeConsistency,
   computeConsistencyTrend,
+  deleteSwingRecord,
   getRecordsForDate,
   getSwingRecords,
   type SwingRecord,
@@ -87,9 +92,22 @@ const SETTINGS: SettingItem[] = [
     value: `v${APP_VERSION}`,
   },
   {
+    id: "export-data",
+    label: "Export My Data",
+    icon: "download",
+    iconFamily: "feather",
+  },
+  {
     id: "logout",
     label: "Sign Out",
     icon: "log-out",
+    iconFamily: "feather",
+    destructive: true,
+  },
+  {
+    id: "delete-account",
+    label: "Delete Account",
+    icon: "trash-2",
     iconFamily: "feather",
     destructive: true,
   },
@@ -97,7 +115,8 @@ const SETTINGS: SettingItem[] = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signUp, signIn, signOut, updateName, changePassword } = useAuth();
+  const { user, signUp, signIn, signOut, updateName, changePassword, deleteAccount, exportData } =
+    useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -110,7 +129,10 @@ export default function ProfileScreen() {
   const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [activeModal, setActiveModal] = useState<"edit-profile" | "security" | null>(null);
+  const [activeModal, setActiveModal] = useState<
+    "edit-profile" | "security" | "delete-account" | null
+  >(null);
+  const [deletePasswordInput, setDeletePasswordInput] = useState("");
   const [editNameInput, setEditNameInput] = useState("");
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
@@ -153,6 +175,8 @@ export default function ProfileScreen() {
   const todaySession   = getTodaySession(sessions);
   const practiceStreak = computeStreak(sessions);
   const totalSwings    = computeTotalSwings(sessions);
+  const careerStats    = computeCareerStats(swingRecords);
+  const sessionCount   = sessions.filter((s) => s.duration > 0 || (s.swings ?? 0) > 0).length;
 
   const recentRecords = [...swingRecords].reverse().slice(0, 10);
   const clubBreakdown = computeClubBreakdown(swingRecords);
@@ -161,11 +185,6 @@ export default function ProfileScreen() {
 
   // Weekly recap: rolling 7-day windows (not calendar weeks) so "this week"
   // always means "the last 7 days" regardless of what day it is.
-  const daysAgoIso = (n: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() - n);
-    return d.toISOString().slice(0, 10);
-  };
   const thisWeekDates = new Set(Array.from({ length: 7 }, (_, i) => daysAgoIso(i)));
   const lastWeekDates = new Set(Array.from({ length: 7 }, (_, i) => daysAgoIso(i + 7)));
   const thisWeekSessions = sessions.filter((s) => thisWeekDates.has(s.date));
@@ -225,6 +244,7 @@ export default function ProfileScreen() {
     setModalSaving(false);
     setCurrentPasswordInput("");
     setNewPasswordInput("");
+    setDeletePasswordInput("");
   };
 
   const handleSettingPress = (item: SettingItem) => {
@@ -247,7 +267,63 @@ export default function ProfileScreen() {
       setActiveModal("security");
     } else if (item.id === "app-info") {
       Alert.alert("SwingTempo", `Version ${APP_VERSION}`);
+    } else if (item.id === "export-data") {
+      void handleExportData();
+    } else if (item.id === "delete-account") {
+      setModalError(null);
+      setActiveModal("delete-account");
     }
+  };
+
+  /**
+   * Data export. Copies the account's full server-side record to the
+   * clipboard as JSON — no email provider is wired up yet, and the share
+   * sheet doesn't exist on web, so the clipboard is the one route that works
+   * on every platform the app runs on.
+   */
+  const handleExportData = async () => {
+    try {
+      const data = await exportData();
+      await Clipboard.setStringAsync(JSON.stringify(data, null, 2));
+      showAuthBanner(
+        "success",
+        `Copied ${data.swingRecords.length} swings and ${data.sessions.length} practice days to your clipboard.`,
+      );
+    } catch (err) {
+      showAuthBanner("error", err instanceof Error ? err.message : "Couldn't export your data.");
+    }
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!deletePasswordInput) {
+      setModalError("Enter your password to confirm.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await deleteAccount(deletePasswordInput);
+      closeModal();
+      showAuthBanner("success", "Your account and all its data have been deleted.");
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't delete your account.");
+    }
+  };
+
+  /** Removes one swing from history, locally and (on next sync) server-side. */
+  const handleDeleteRecord = (record: SwingRecord) => {
+    Alert.alert("Delete Swing", "Remove this swing from your history?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await deleteSwingRecord(record.id);
+          setSwingRecords(await getSwingRecords());
+        },
+      },
+    ]);
   };
 
   const saveEditProfile = async () => {
@@ -501,9 +577,15 @@ export default function ProfileScreen() {
             {recentRecords.length > 0 && (
               <View style={styles.widgetSection}>
                 <Text style={styles.sectionLabel}>RECENT SWINGS</Text>
+                <Text style={styles.sectionHint}>Long-press a swing to delete it</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.archiveRow}>
                   {recentRecords.map((r) => (
-                    <Pressable key={r.id} style={styles.archiveCard} onPress={() => openRecordedSwing(r)}>
+                    <Pressable
+                      key={r.id}
+                      style={styles.archiveCard}
+                      onPress={() => openRecordedSwing(r)}
+                      onLongPress={() => handleDeleteRecord(r)}
+                    >
                       <View style={styles.archiveThumb}>
                         {r.thumbnailUri ? (
                           <Image source={{ uri: r.thumbnailUri }} style={styles.archiveThumbImage} contentFit="cover" />
@@ -546,23 +628,49 @@ export default function ProfileScreen() {
                 </View>
               </View>
               <Text style={styles.emailDisplay}>{user.name || user.email}</Text>
-              <View style={styles.badgeRow}>
-                <View style={styles.badge}>
-                  <MaterialCommunityIcons
-                    name="golf"
-                    size={12}
-                    color="#FFD700"
-                  />
-                  <Text style={styles.badgeText}>SwingTempo Pro</Text>
+              {/*
+                A gold "SwingTempo Pro" badge used to sit here for every
+                signed-in user. There is no subscription tier, no entitlement
+                check and no payment integration behind it — it implied a paid
+                plan that doesn't exist. Replaced with the streak, which is
+                real and actually earned.
+              */}
+              {practiceStreak > 0 && (
+                <View style={styles.badgeRow}>
+                  <View style={styles.badge}>
+                    <MaterialCommunityIcons name="fire" size={12} color="#FF9F0A" />
+                    <Text style={styles.badgeText}>
+                      {practiceStreak} day streak
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              )}
             </View>
 
+            {/*
+              These were hardcoded to "24 / 3.1:1 / 82%" for every account,
+              which meant a brand-new user was shown invented measurements by
+              a measurement app. They're computed from real data now, and read
+              "—" until there is any.
+            */}
             <View style={styles.statsRow}>
               {[
-                { label: "Sessions", value: "24" },
-                { label: "Best Ratio", value: "3.1:1" },
-                { label: "Avg Accuracy", value: "82%" },
+                {
+                  label: "Sessions",
+                  value: sessionCount > 0 ? String(sessionCount) : "—",
+                },
+                {
+                  label: "Best Ratio",
+                  value: careerStats.bestRatio !== null
+                    ? `${careerStats.bestRatio.toFixed(2)}:1`
+                    : "—",
+                },
+                {
+                  label: "Avg Accuracy",
+                  value: careerStats.avgAccuracy !== null
+                    ? `${careerStats.avgAccuracy}%`
+                    : "—",
+                },
               ].map((stat) => (
                 <View key={stat.label} style={styles.statCard}>
                   <Text style={styles.statValue}>{stat.value}</Text>
@@ -828,6 +936,56 @@ export default function ProfileScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalSaveLabel}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/*
+        Account deletion. Required by App Store guideline 5.1.1(v) for any app
+        offering account creation, and by erasure rights under the Australian
+        Privacy Act and GDPR. The password is re-entered here and re-checked
+        server-side, so a stolen token alone can't destroy someone's data.
+      */}
+      <Modal
+        visible={activeModal === "delete-account"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Delete Account</Text>
+            <Text style={styles.modalWarning}>
+              This permanently deletes your account, your practice history and every synced
+              swing. It cannot be undone. Export your data first if you want to keep it.
+            </Text>
+            <Text style={styles.modalLabel}>Confirm your password</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deletePasswordInput}
+              onChangeText={setDeletePasswordInput}
+              placeholder="Password"
+              placeholderTextColor="#333333"
+              secureTextEntry
+              autoFocus
+            />
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalDeleteBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={confirmDeleteAccount}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>Delete Forever</Text>
                 )}
               </Pressable>
             </View>
@@ -1134,6 +1292,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontFamily: "Inter_600SemiBold",
   },
+  sectionHint: {
+    fontSize: 11,
+    color: "#333333",
+    marginTop: -4,
+    marginBottom: 8,
+    fontFamily: "Inter_400Regular",
+  },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1335,6 +1500,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A8CFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalWarning: {
+    color: "#FF9F0A",
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 16,
   },
   modalSaveLabel: {
     color: "#FFFFFF",

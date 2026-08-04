@@ -3,7 +3,13 @@ import { useEffect, useRef } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { getSessions, saveSessions } from "@/utils/sessions";
-import { getSwingRecords, saveSwingRecords, type SwingRecord } from "@/utils/swingHistory";
+import {
+  clearPendingDeletes,
+  getPendingDeletes,
+  getSwingRecords,
+  saveSwingRecords,
+  type SwingRecord,
+} from "@/utils/swingHistory";
 import type { ShotCategory } from "@/data/tempoPlayers";
 
 const SYNC_INTERVAL_MS = 60000;
@@ -27,10 +33,17 @@ export function useCloudSync() {
       if (inFlight.current) return;
       inFlight.current = true;
       try {
-        const [sessions, swingRecords] = await Promise.all([getSessions(), getSwingRecords()]);
+        const [sessions, swingRecords, pendingDeletes] = await Promise.all([
+          getSessions(),
+          getSwingRecords(),
+          getPendingDeletes(),
+        ]);
         const merged = await sync({
           sessions: sessions.map((s) => ({ date: s.date, duration: s.duration, swings: s.swings ?? 0 })),
-          swingRecords,
+          // Strip local-only fields — the server's schema rejects unknown
+          // keys, and thumbnailUri is a device path it must never store.
+          swingRecords: swingRecords.map(({ thumbnailUri: _thumbnailUri, ...rest }) => rest),
+          deletedSwingRecordIds: pendingDeletes,
         });
         // thumbnailUri is local-only (a device file path) — the server
         // never stores or returns it, so reattach it from local records by
@@ -44,9 +57,14 @@ export function useCloudSync() {
         await Promise.all([
           saveSessions(merged.sessions.map((s) => ({ date: s.date, duration: s.duration, swings: s.swings }))),
           saveSwingRecords(mergedRecords),
+          // The server has now applied these, and the merged response no
+          // longer contains them — drop them from the queue so it doesn't
+          // grow forever.
+          clearPendingDeletes(pendingDeletes),
         ]);
       } catch {
-        // Best-effort — local data is unaffected by a failed sync attempt.
+        // Best-effort — local data is unaffected by a failed sync attempt,
+        // and pending deletes stay queued for the next round.
       } finally {
         inFlight.current = false;
       }

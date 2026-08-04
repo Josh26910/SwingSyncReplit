@@ -5,12 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AuthUser } from './authUser';
 import type { PracticeSessionDto } from './practiceSessionDto';
 import type { SwingRecordDto } from './swingRecordDto';
 
-export interface SyncPayload {
-  /** @maxItems 3650 */
+export interface AccountExport {
+  /** ISO 8601 timestamp of when this export was generated */
+  exportedAt: string;
+  user: AuthUser;
   sessions: PracticeSessionDto[];
-  /** @maxItems 500 */
   swingRecords: SwingRecordDto[];
 }

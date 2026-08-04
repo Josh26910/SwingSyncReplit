@@ -46,12 +46,27 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface DeleteAccountRequest {
+  password: string;
+}
+
 export interface PracticeSessionDto {
-  /** ISO date, YYYY-MM-DD */
+  /**
+     * ISO date, YYYY-MM-DD
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
   date: string;
-  /** Seconds practiced that day */
+  /**
+     * Seconds practiced that day, capped at one full day
+     * @minimum 0
+     * @maximum 86400
+     */
   duration: number;
-  /** Swings analyzed that day */
+  /**
+     * Swings analyzed that day
+     * @minimum 0
+     * @maximum 100000
+     */
   swings?: number;
 }
 
@@ -71,25 +86,83 @@ export const SwingRecordDtoGameMode = {
   short: 'short',
 } as const;
 
+export type SwingRecordDtoClub = typeof SwingRecordDtoClub[keyof typeof SwingRecordDtoClub] | null;
+
+
+export const SwingRecordDtoClub = {
+  tee: 'tee',
+  approach: 'approach',
+  shortgame: 'shortgame',
+  putting: 'putting',
+} as const;
+
 export interface SwingRecordDto {
-  /** Client-generated id, stable across sync */
+  /**
+     * Client-generated id, unique per account (not globally)
+     * @minLength 1
+     * @maxLength 64
+     */
   id: string;
-  /** ISO date, YYYY-MM-DD */
+  /**
+     * ISO date, YYYY-MM-DD
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
   date: string;
-  /** Epoch milliseconds */
+  /**
+     * Epoch milliseconds. Bounded to the range JS Date can represent.
+     * @minimum 0
+     * @maximum 8640000000000000
+     */
   timestamp: number;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
   swingId: string;
   origin: SwingRecordDtoOrigin;
+  /** @maxLength 120 */
   golferName: string;
   gameMode: SwingRecordDtoGameMode;
-  club: string | null;
+  club: SwingRecordDtoClub;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
   ratio: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
   accuracy: number;
 }
 
-export interface SyncPayload {
+export interface AccountExport {
+  /** ISO 8601 timestamp of when this export was generated */
+  exportedAt: string;
+  user: AuthUser;
   sessions: PracticeSessionDto[];
   swingRecords: SwingRecordDto[];
+}
+
+export interface SyncPayload {
+  /** @maxItems 3650 */
+  sessions: PracticeSessionDto[];
+  /** @maxItems 500 */
+  swingRecords: SwingRecordDto[];
+}
+
+export interface SyncRequest {
+  /** @maxItems 3650 */
+  sessions: PracticeSessionDto[];
+  /** @maxItems 500 */
+  swingRecords: SwingRecordDto[];
+  /**
+     * Ids the user deleted locally. The server removes these from the account before merging, so a deletion propagates instead of the record being resurrected by the next pull.
+     * @maxItems 500
+     * @items.minLength 1
+     * @items.maxLength 64
+     */
+  deletedSwingRecordIds?: string[];
 }
 
 export type ShotCategory = typeof ShotCategory[keyof typeof ShotCategory];

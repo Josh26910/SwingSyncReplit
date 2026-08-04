@@ -45,16 +45,24 @@ function extractYoutubeId(input: string): string {
 function VideoLinkRow({ entry, adminToken, onSaved }: { entry: TempoVideoDto; adminToken: string; onSaved: () => void }) {
   const [value, setValue] = useState(entry.youtubeId ?? "");
   const [start, setStart] = useState(entry.clipStartSec != null ? String(entry.clipStartSec) : "");
+  const [end, setEnd] = useState(entry.clipEndSec != null ? String(entry.clipEndSec) : "");
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    const startSec = start.trim() ? Number(start) : undefined;
+    const endSec = end.trim() ? Number(end) : undefined;
+    if (startSec !== undefined && endSec !== undefined && endSec <= startSec) {
+      Alert.alert("Invalid Clip", "The end time has to be after the start time.");
+      return;
+    }
     setSaving(true);
     try {
       await updateTempoVideo(
         entry.id,
         {
           youtubeId: value.trim() ? extractYoutubeId(value) : undefined,
-          clipStartSec: start.trim() ? Number(start) : undefined,
+          clipStartSec: startSec,
+          clipEndSec: endSec,
         },
         { headers: { "x-admin-token": adminToken } },
       );
@@ -90,7 +98,7 @@ function VideoLinkRow({ entry, adminToken, onSaved }: { entry: TempoVideoDto; ad
       </View>
       <View style={styles.rowInputs}>
         <TextInput
-          style={[styles.input, { flex: 2 }]}
+          style={[styles.input, { flex: 3 }]}
           value={value}
           onChangeText={setValue}
           placeholder="YouTube URL or video id"
@@ -102,6 +110,14 @@ function VideoLinkRow({ entry, adminToken, onSaved }: { entry: TempoVideoDto; ad
           value={start}
           onChangeText={setStart}
           placeholder="start (s)"
+          placeholderTextColor="#555"
+          keyboardType="decimal-pad"
+        />
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          value={end}
+          onChangeText={setEnd}
+          placeholder="end (s)"
           placeholderTextColor="#555"
           keyboardType="decimal-pad"
         />

@@ -45,11 +45,62 @@ function getAppName() {
   }
 }
 
+/**
+ * Headers applied to every response. The CSP is the meaningful one: the
+ * landing page is fully self-contained, so locking it to 'self' plus inline
+ * styles both hardens it and provides defence-in-depth behind the host
+ * validation below.
+ */
+const SECURITY_HEADERS = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "content-security-policy":
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; " +
+    "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; " +
+    "base-uri 'self'; form-action 'self'",
+};
+
+function writeHead(res, status, headers = {}) {
+  res.writeHead(status, { ...SECURITY_HEADERS, ...headers });
+}
+
+/**
+ * Hosts are reflected into the landing page's HTML and into a JavaScript
+ * string literal. `x-forwarded-host` is attacker-controlled — Node validates
+ * the real Host header but forwards this one verbatim — so an unescaped
+ * value was a straight XSS/cache-poisoning vector. Only accept something
+ * that actually looks like a hostname (optionally with a port); anything
+ * else falls back to the request's own Host.
+ */
+const HOST_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?(:\d{1,5})?$/;
+
+function safeHost(req) {
+  const candidates = [req.headers["x-forwarded-host"], req.headers["host"]];
+  for (const candidate of candidates) {
+    // A duplicated header arrives comma-joined; take the first hop only.
+    const value = String(candidate ?? "").split(",")[0].trim();
+    if (HOST_PATTERN.test(value)) return value;
+  }
+  return "localhost";
+}
+
+/** Belt-and-braces: even a validated host gets escaped before substitution. */
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function serveManifest(platform, res) {
   const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
 
   if (!fs.existsSync(manifestPath)) {
-    res.writeHead(404, { "content-type": "application/json" });
+    writeHead(res, 404, { "content-type": "application/json" });
     res.end(
       JSON.stringify({ error: `Manifest not found for platform: ${platform}` }),
     );
@@ -57,7 +108,7 @@ function serveManifest(platform, res) {
   }
 
   const manifest = fs.readFileSync(manifestPath, "utf-8");
-  res.writeHead(200, {
+  writeHead(res, 200, {
     "content-type": "application/json",
     "expo-protocol-version": "1",
     "expo-sfv-version": "0",
@@ -66,41 +117,69 @@ function serveManifest(platform, res) {
 }
 
 function serveLandingPage(req, res, landingPageTemplate, appName) {
-  const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol = forwardedProto || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
-  const baseUrl = `${protocol}://${host}`;
-  const expsUrl = `${host}`;
+  const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
+  const protocol = forwardedProto === "http" || forwardedProto === "https" ? forwardedProto : "https";
+  const host = safeHost(req);
+  const baseUrl = escapeHtml(`${protocol}://${host}`);
+  const expsUrl = escapeHtml(host);
 
   const html = landingPageTemplate
     .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
     .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
-    .replace(/APP_NAME_PLACEHOLDER/g, appName);
+    .replace(/APP_NAME_PLACEHOLDER/g, escapeHtml(appName));
 
-  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  writeHead(res, 200, { "content-type": "text/html; charset=utf-8" });
   res.end(html);
 }
 
 function serveStaticFile(urlPath, res) {
-  const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, "");
+  // Decode first: without this a %2e%2e%2f would be served literally, and
+  // any future decoding step upstream would reopen traversal.
+  let decoded;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    writeHead(res, 400);
+    res.end("Bad Request");
+    return;
+  }
+
+  const safePath = path.normalize(decoded).replace(/^(\.\.(\/|\\|$))+/, "");
   const filePath = path.join(STATIC_ROOT, safePath);
 
-  if (!filePath.startsWith(STATIC_ROOT)) {
-    res.writeHead(403);
+  // path.relative is the correct containment check — startsWith() alone
+  // would also accept a sibling directory sharing the root's name prefix.
+  const relative = path.relative(STATIC_ROOT, filePath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    writeHead(res, 403);
     res.end("Forbidden");
     return;
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    res.writeHead(404);
+  const ext = path.extname(filePath).toLowerCase();
+
+  // Sourcemaps expose the original client source. They're useful locally and
+  // pure information disclosure in production.
+  if (ext === ".map" && process.env.NODE_ENV === "production") {
+    writeHead(res, 404);
     res.end("Not Found");
     return;
   }
 
-  const ext = path.extname(filePath).toLowerCase();
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    writeHead(res, 404);
+    res.end("Not Found");
+    return;
+  }
+
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   const content = fs.readFileSync(filePath);
-  res.writeHead(200, { "content-type": contentType });
+  writeHead(res, 200, {
+    "content-type": contentType,
+    // Hashed bundle assets are immutable; HTML must always be revalidated
+    // or a deploy never reaches an existing tab.
+    "cache-control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
+  });
   res.end(content);
 }
 

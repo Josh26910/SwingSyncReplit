@@ -83,7 +83,73 @@ export const UpdateProfileResponse = zod.object({
 
 
 /**
- * @summary Change the current user's password
+ * Requires the account password to be re-entered. Deleting the user row cascades to practice_sessions and swing_records, so nothing is left behind. Irreversible — the client should confirm before calling.
+ * @summary Permanently delete the current account and all of its data
+ */
+export const DeleteAccountBody = zod.object({
+  "password": zod.string()
+})
+
+export const DeleteAccountResponse = zod.void()
+
+
+/**
+ * @summary Export everything stored server-side for the current account
+ */
+export const exportAccountDataResponseSessionsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const exportAccountDataResponseSessionsItemDurationMin = 0;
+export const exportAccountDataResponseSessionsItemDurationMax = 86400;
+
+export const exportAccountDataResponseSessionsItemSwingsMin = 0;
+export const exportAccountDataResponseSessionsItemSwingsMax = 100000;
+
+export const exportAccountDataResponseSwingRecordsItemIdMax = 64;
+
+export const exportAccountDataResponseSwingRecordsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const exportAccountDataResponseSwingRecordsItemTimestampMin = 0;
+export const exportAccountDataResponseSwingRecordsItemTimestampMax = 8640000000000000;
+
+export const exportAccountDataResponseSwingRecordsItemSwingIdMax = 64;
+
+export const exportAccountDataResponseSwingRecordsItemGolferNameMax = 120;
+
+export const exportAccountDataResponseSwingRecordsItemRatioMin = 0;
+export const exportAccountDataResponseSwingRecordsItemRatioMax = 100;
+
+export const exportAccountDataResponseSwingRecordsItemAccuracyMin = 0;
+export const exportAccountDataResponseSwingRecordsItemAccuracyMax = 100;
+
+
+
+export const ExportAccountDataResponse = zod.object({
+  "exportedAt": zod.string().describe('ISO 8601 timestamp of when this export was generated'),
+  "user": zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "name": zod.string().nullish()
+}),
+  "sessions": zod.array(zod.object({
+  "date": zod.string().regex(exportAccountDataResponseSessionsItemDateRegExp).describe('ISO date, YYYY-MM-DD'),
+  "duration": zod.number().min(exportAccountDataResponseSessionsItemDurationMin).max(exportAccountDataResponseSessionsItemDurationMax).describe('Seconds practiced that day, capped at one full day'),
+  "swings": zod.number().min(exportAccountDataResponseSessionsItemSwingsMin).max(exportAccountDataResponseSessionsItemSwingsMax).optional().describe('Swings analyzed that day')
+})),
+  "swingRecords": zod.array(zod.object({
+  "id": zod.string().min(1).max(exportAccountDataResponseSwingRecordsItemIdMax).describe('Client-generated id, unique per account (not globally)'),
+  "date": zod.string().regex(exportAccountDataResponseSwingRecordsItemDateRegExp).describe('ISO date, YYYY-MM-DD'),
+  "timestamp": zod.number().min(exportAccountDataResponseSwingRecordsItemTimestampMin).max(exportAccountDataResponseSwingRecordsItemTimestampMax).describe('Epoch milliseconds. Bounded to the range JS Date can represent.'),
+  "swingId": zod.string().min(1).max(exportAccountDataResponseSwingRecordsItemSwingIdMax),
+  "origin": zod.enum(['mine', 'pro']),
+  "golferName": zod.string().max(exportAccountDataResponseSwingRecordsItemGolferNameMax),
+  "gameMode": zod.enum(['long', 'short']),
+  "club": zod.union([zod.literal('tee'),zod.literal('approach'),zod.literal('shortgame'),zod.literal('putting'),zod.literal(null)]).nullable(),
+  "ratio": zod.number().min(exportAccountDataResponseSwingRecordsItemRatioMin).max(exportAccountDataResponseSwingRecordsItemRatioMax),
+  "accuracy": zod.number().min(exportAccountDataResponseSwingRecordsItemAccuracyMin).max(exportAccountDataResponseSwingRecordsItemAccuracyMax)
+}))
+})
+
+
+/**
+ * Changing the password revokes every token issued before it (the account's token version is bumped), so the response carries a freshly signed token for the calling device. Clients must persist it or they will be signed out on their next request.
  */
 export const changePasswordBodyNewPasswordMin = 8;
 
@@ -95,9 +161,12 @@ export const ChangePasswordBody = zod.object({
 })
 
 export const ChangePasswordResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
   "id": zod.string().uuid(),
   "email": zod.string().email(),
   "name": zod.string().nullish()
+})
 })
 
 
@@ -105,44 +174,107 @@ export const ChangePasswordResponse = zod.object({
  * Local-first sync: the client sends its current local snapshot, the server upserts it (sessions merged by max duration/swings per day, swing records deduped by id) and returns the full merged dataset for this account. The client replaces its local storage with the response.
  * @summary Push local practice sessions/swing records, get back the merged authoritative set
  */
+export const syncBodySessionsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const syncBodySessionsItemDurationMin = 0;
+export const syncBodySessionsItemDurationMax = 86400;
+
+export const syncBodySessionsItemSwingsMin = 0;
+export const syncBodySessionsItemSwingsMax = 100000;
+
+export const syncBodySessionsMax = 3650;
+
+export const syncBodySwingRecordsItemIdMax = 64;
+
+export const syncBodySwingRecordsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const syncBodySwingRecordsItemTimestampMin = 0;
+export const syncBodySwingRecordsItemTimestampMax = 8640000000000000;
+
+export const syncBodySwingRecordsItemSwingIdMax = 64;
+
+export const syncBodySwingRecordsItemGolferNameMax = 120;
+
+export const syncBodySwingRecordsItemRatioMin = 0;
+export const syncBodySwingRecordsItemRatioMax = 100;
+
+export const syncBodySwingRecordsItemAccuracyMin = 0;
+export const syncBodySwingRecordsItemAccuracyMax = 100;
+
+export const syncBodySwingRecordsMax = 500;
+
+export const syncBodyDeletedSwingRecordIdsItemMax = 64;
+
+export const syncBodyDeletedSwingRecordIdsMax = 500;
+
+
+
 export const SyncBody = zod.object({
   "sessions": zod.array(zod.object({
-  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
-  "duration": zod.number().describe('Seconds practiced that day'),
-  "swings": zod.number().optional().describe('Swings analyzed that day')
-})),
+  "date": zod.string().regex(syncBodySessionsItemDateRegExp).describe('ISO date, YYYY-MM-DD'),
+  "duration": zod.number().min(syncBodySessionsItemDurationMin).max(syncBodySessionsItemDurationMax).describe('Seconds practiced that day, capped at one full day'),
+  "swings": zod.number().min(syncBodySessionsItemSwingsMin).max(syncBodySessionsItemSwingsMax).optional().describe('Swings analyzed that day')
+})).max(syncBodySessionsMax),
   "swingRecords": zod.array(zod.object({
-  "id": zod.string().describe('Client-generated id, stable across sync'),
-  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
-  "timestamp": zod.number().describe('Epoch milliseconds'),
-  "swingId": zod.string(),
+  "id": zod.string().min(1).max(syncBodySwingRecordsItemIdMax).describe('Client-generated id, unique per account (not globally)'),
+  "date": zod.string().regex(syncBodySwingRecordsItemDateRegExp).describe('ISO date, YYYY-MM-DD'),
+  "timestamp": zod.number().min(syncBodySwingRecordsItemTimestampMin).max(syncBodySwingRecordsItemTimestampMax).describe('Epoch milliseconds. Bounded to the range JS Date can represent.'),
+  "swingId": zod.string().min(1).max(syncBodySwingRecordsItemSwingIdMax),
   "origin": zod.enum(['mine', 'pro']),
-  "golferName": zod.string(),
+  "golferName": zod.string().max(syncBodySwingRecordsItemGolferNameMax),
   "gameMode": zod.enum(['long', 'short']),
-  "club": zod.string().nullable(),
-  "ratio": zod.number(),
-  "accuracy": zod.number()
-}))
+  "club": zod.union([zod.literal('tee'),zod.literal('approach'),zod.literal('shortgame'),zod.literal('putting'),zod.literal(null)]).nullable(),
+  "ratio": zod.number().min(syncBodySwingRecordsItemRatioMin).max(syncBodySwingRecordsItemRatioMax),
+  "accuracy": zod.number().min(syncBodySwingRecordsItemAccuracyMin).max(syncBodySwingRecordsItemAccuracyMax)
+})).max(syncBodySwingRecordsMax),
+  "deletedSwingRecordIds": zod.array(zod.string().min(1).max(syncBodyDeletedSwingRecordIdsItemMax)).max(syncBodyDeletedSwingRecordIdsMax).optional().describe('Ids the user deleted locally. The server removes these from the account before merging, so a deletion propagates instead of the record being resurrected by the next pull.')
 })
+
+export const syncResponseSessionsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const syncResponseSessionsItemDurationMin = 0;
+export const syncResponseSessionsItemDurationMax = 86400;
+
+export const syncResponseSessionsItemSwingsMin = 0;
+export const syncResponseSessionsItemSwingsMax = 100000;
+
+export const syncResponseSessionsMax = 3650;
+
+export const syncResponseSwingRecordsItemIdMax = 64;
+
+export const syncResponseSwingRecordsItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const syncResponseSwingRecordsItemTimestampMin = 0;
+export const syncResponseSwingRecordsItemTimestampMax = 8640000000000000;
+
+export const syncResponseSwingRecordsItemSwingIdMax = 64;
+
+export const syncResponseSwingRecordsItemGolferNameMax = 120;
+
+export const syncResponseSwingRecordsItemRatioMin = 0;
+export const syncResponseSwingRecordsItemRatioMax = 100;
+
+export const syncResponseSwingRecordsItemAccuracyMin = 0;
+export const syncResponseSwingRecordsItemAccuracyMax = 100;
+
+export const syncResponseSwingRecordsMax = 500;
+
+
 
 export const SyncResponse = zod.object({
   "sessions": zod.array(zod.object({
-  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
-  "duration": zod.number().describe('Seconds practiced that day'),
-  "swings": zod.number().optional().describe('Swings analyzed that day')
-})),
+  "date": zod.string().regex(syncResponseSessionsItemDateRegExp).describe('ISO date, YYYY-MM-DD'),
+  "duration": zod.number().min(syncResponseSessionsItemDurationMin).max(syncResponseSessionsItemDurationMax).describe('Seconds practiced that day, capped at one full day'),
+  "swings": zod.number().min(syncResponseSessionsItemSwingsMin).max(syncResponseSessionsItemSwingsMax).optional().describe('Swings analyzed that day')
+})).max(syncResponseSessionsMax),
   "swingRecords": zod.array(zod.object({
-  "id": zod.string().describe('Client-generated id, stable across sync'),
-  "date": zod.string().describe('ISO date, YYYY-MM-DD'),
-  "timestamp": zod.number().describe('Epoch milliseconds'),
-  "swingId": zod.string(),
+  "id": zod.string().min(1).max(syncResponseSwingRecordsItemIdMax).describe('Client-generated id, unique per account (not globally)'),
+  "date": zod.string().regex(syncResponseSwingRecordsItemDateRegExp).describe('ISO date, YYYY-MM-DD'),
+  "timestamp": zod.number().min(syncResponseSwingRecordsItemTimestampMin).max(syncResponseSwingRecordsItemTimestampMax).describe('Epoch milliseconds. Bounded to the range JS Date can represent.'),
+  "swingId": zod.string().min(1).max(syncResponseSwingRecordsItemSwingIdMax),
   "origin": zod.enum(['mine', 'pro']),
-  "golferName": zod.string(),
+  "golferName": zod.string().max(syncResponseSwingRecordsItemGolferNameMax),
   "gameMode": zod.enum(['long', 'short']),
-  "club": zod.string().nullable(),
-  "ratio": zod.number(),
-  "accuracy": zod.number()
-}))
+  "club": zod.union([zod.literal('tee'),zod.literal('approach'),zod.literal('shortgame'),zod.literal('putting'),zod.literal(null)]).nullable(),
+  "ratio": zod.number().min(syncResponseSwingRecordsItemRatioMin).max(syncResponseSwingRecordsItemRatioMax),
+  "accuracy": zod.number().min(syncResponseSwingRecordsItemAccuracyMin).max(syncResponseSwingRecordsItemAccuracyMax)
+})).max(syncResponseSwingRecordsMax)
 })
 
 
@@ -216,7 +348,7 @@ export const CreateTempoVideoResponse = zod.object({
  * @summary Update a tempo video entry, e.g. attach a youtubeId once sourced (admin only)
  */
 export const UpdateTempoVideoParams = zod.object({
-  "id": zod.coerce.string()
+  "id": zod.coerce.string().uuid()
 })
 
 export const UpdateTempoVideoBody = zod.object({
@@ -259,7 +391,7 @@ export const UpdateTempoVideoResponse = zod.object({
  * @summary Remove a tempo video entry (admin only)
  */
 export const DeleteTempoVideoParams = zod.object({
-  "id": zod.coerce.string()
+  "id": zod.coerce.string().uuid()
 })
 
 export const DeleteTempoVideoResponse = zod.void()

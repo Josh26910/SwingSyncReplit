@@ -123,11 +123,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAccount
+      tags: [auth]
+      summary: Permanently delete the current account and all of its data
+      description: >-
+        Requires the account password to be re-entered. Deleting the user row
+        cascades to practice_sessions and swing_records, so nothing is left
+        behind. Irreversible — the client should confirm before calling.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountRequest"
+      responses:
+        "204":
+          description: Account deleted
+        "400":
+          description: Password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/me/export:
+    get:
+      operationId: exportAccountData
+      tags: [auth]
+      summary: Export everything stored server-side for the current account
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Full account export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountExport"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /auth/password:
     patch:
       operationId: changePassword
       tags: [auth]
-      summary: Change the current user's password
+      description: >-
+        Changing the password revokes every token issued before it (the
+        account's token version is bumped), so the response carries a freshly
+        signed token for the calling device. Clients must persist it or they
+        will be signed out on their next request.
       security:
         - bearerAuth: []
       requestBody:
@@ -138,11 +193,11 @@ paths:
               $ref: "#/components/schemas/ChangePasswordRequest"
       responses:
         "200":
-          description: Password changed
+          description: Password changed, with a replacement token
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthUser"
+                $ref: "#/components/schemas/AuthResponse"
         "400":
           description: Current password is incorrect, or new password is invalid
           content:
@@ -173,7 +228,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SyncPayload"
+              $ref: "#/components/schemas/SyncRequest"
       responses:
         "200":
           description: Merged sync state
@@ -245,6 +300,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -282,6 +338,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         "204":
           description: Deleted
@@ -384,18 +441,55 @@ components:
           type: string
       required:
         - error
+    DeleteAccountRequest:
+      type: object
+      properties:
+        password:
+          type: string
+      required:
+        - password
+    AccountExport:
+      type: object
+      properties:
+        exportedAt:
+          type: string
+          description: ISO 8601 timestamp of when this export was generated
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PracticeSessionDto"
+        swingRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwingRecordDto"
+      required:
+        - exportedAt
+        - user
+        - sessions
+        - swingRecords
+    # Bounds below are deliberate, not decorative: an unbounded `duration`
+    # combined with the server's greatest(local, server) merge would let one
+    # bad client permanently poison a day's practice total with no way to
+    # correct it. See docs/AUDIT.md F3/S7.
     PracticeSessionDto:
       type: object
       properties:
         date:
           type: string
           description: ISO date, YYYY-MM-DD
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
         duration:
           type: integer
-          description: Seconds practiced that day
+          description: Seconds practiced that day, capped at one full day
+          minimum: 0
+          maximum: 86400
         swings:
           type: integer
           description: Swings analyzed that day
+          minimum: 0
+          maximum: 100000
       required:
         - date
         - duration
@@ -404,31 +498,44 @@ components:
       properties:
         id:
           type: string
-          description: Client-generated id, stable across sync
+          description: Client-generated id, unique per account (not globally)
+          minLength: 1
+          maxLength: 64
         date:
           type: string
           description: ISO date, YYYY-MM-DD
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
         timestamp:
           type: integer
           format: int64
-          description: Epoch milliseconds
+          description: Epoch milliseconds. Bounded to the range JS Date can represent.
+          minimum: 0
+          maximum: 8640000000000000
         swingId:
           type: string
+          minLength: 1
+          maxLength: 64
         origin:
           type: string
           enum: [mine, pro]
         golferName:
           type: string
+          maxLength: 120
         gameMode:
           type: string
           enum: [long, short]
         club:
           type: string
           nullable: true
+          enum: [tee, approach, shortgame, putting, null]
         ratio:
           type: number
+          minimum: 0
+          maximum: 100
         accuracy:
           type: integer
+          minimum: 0
+          maximum: 100
       required:
         - id
         - date
@@ -445,12 +552,41 @@ components:
       properties:
         sessions:
           type: array
+          maxItems: 3650
           items:
             $ref: "#/components/schemas/PracticeSessionDto"
         swingRecords:
           type: array
+          maxItems: 500
           items:
             $ref: "#/components/schemas/SwingRecordDto"
+      required:
+        - sessions
+        - swingRecords
+    SyncRequest:
+      type: object
+      properties:
+        sessions:
+          type: array
+          maxItems: 3650
+          items:
+            $ref: "#/components/schemas/PracticeSessionDto"
+        swingRecords:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/SwingRecordDto"
+        deletedSwingRecordIds:
+          type: array
+          maxItems: 500
+          description: >-
+            Ids the user deleted locally. The server removes these from the
+            account before merging, so a deletion propagates instead of the
+            record being resurrected by the next pull.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
       required:
         - sessions
         - swingRecords
