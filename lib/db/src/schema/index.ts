@@ -21,3 +21,4 @@ export * from "./users";
 export * from "./practiceSessions";
 export * from "./swingRecords";
 export * from "./tempoVideos";
+export * from "./passwordResetTokens";

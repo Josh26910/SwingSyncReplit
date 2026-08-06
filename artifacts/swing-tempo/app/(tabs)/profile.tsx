@@ -115,8 +115,17 @@ const SETTINGS: SettingItem[] = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signUp, signIn, signOut, updateName, changePassword, deleteAccount, exportData } =
-    useAuth();
+  const {
+    user,
+    signUp,
+    signIn,
+    signOut,
+    updateName,
+    changePassword,
+    forgotPassword,
+    deleteAccount,
+    exportData,
+  } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -130,9 +139,11 @@ export default function ProfileScreen() {
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [activeModal, setActiveModal] = useState<
-    "edit-profile" | "security" | "delete-account" | null
+    "edit-profile" | "security" | "delete-account" | "forgot-password" | null
   >(null);
   const [deletePasswordInput, setDeletePasswordInput] = useState("");
+  const [forgotEmailInput, setForgotEmailInput] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const [editNameInput, setEditNameInput] = useState("");
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
@@ -245,6 +256,28 @@ export default function ProfileScreen() {
     setCurrentPasswordInput("");
     setNewPasswordInput("");
     setDeletePasswordInput("");
+    setForgotEmailInput("");
+    setForgotSent(false);
+  };
+
+  const submitForgotPassword = async () => {
+    if (!forgotEmailInput.trim()) {
+      setModalError("Enter your account email.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await forgotPassword(forgotEmailInput.trim());
+      // The server always responds the same way whether or not the email is
+      // registered — that's deliberate (it's what stops this screen being
+      // usable to check who has an account), so this message is generic too.
+      setForgotSent(true);
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setModalSaving(false);
+    }
   };
 
   const handleSettingPress = (item: SettingItem) => {
@@ -821,12 +854,12 @@ export default function ProfileScreen() {
               {mode === "signin" && (
                 <Pressable
                   style={styles.forgotBtn}
-                  onPress={() =>
-                    Alert.alert(
-                      "Not Available Yet",
-                      "Password reset isn't set up yet — check back soon."
-                    )
-                  }
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setModalError(null);
+                    setForgotEmailInput(email);
+                    setActiveModal("forgot-password");
+                  }}
                 >
                   <Text style={styles.forgotLabel}>Forgot Password?</Text>
                 </Pressable>
@@ -989,6 +1022,63 @@ export default function ProfileScreen() {
                 )}
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeModal === "forgot-password"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            {forgotSent ? (
+              <>
+                <Text style={styles.modalLabel}>
+                  If that email has an account, a reset link is on its way. Check your inbox —
+                  the link expires in 30 minutes.
+                </Text>
+                <View style={styles.modalBtnRow}>
+                  <Pressable style={styles.modalSaveBtn} onPress={closeModal}>
+                    <Text style={styles.modalSaveLabel}>Done</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>Account email</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={forgotEmailInput}
+                  onChangeText={setForgotEmailInput}
+                  placeholder="Email address"
+                  placeholderTextColor="#333333"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoFocus
+                />
+                {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+                <View style={styles.modalBtnRow}>
+                  <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                    <Text style={styles.modalCancelLabel}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalSaveBtn, modalSaving && { opacity: 0.7 }]}
+                    onPress={submitForgotPassword}
+                    disabled={modalSaving}
+                  >
+                    {modalSaving ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalSaveLabel}>Send Link</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>

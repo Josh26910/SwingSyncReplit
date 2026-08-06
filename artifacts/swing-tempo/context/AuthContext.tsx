@@ -2,8 +2,10 @@ import {
   changePassword as apiChangePassword,
   deleteAccount as apiDeleteAccount,
   exportAccountData as apiExportAccountData,
+  forgotPassword as apiForgotPassword,
   getCurrentUser as apiGetCurrentUser,
   login as apiLogin,
+  resetPassword as apiResetPassword,
   signup as apiSignup,
   updateProfile as apiUpdateProfile,
   setAuthTokenGetter,
@@ -26,6 +28,10 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   updateName: (name: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Always resolves — the server responds the same way whether or not the email is registered. */
+  forgotPassword: (email: string) => Promise<void>;
+  /** Redeems a reset-link token, sets the new password, and signs the caller in. */
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
   /** Permanently deletes the account server-side, then signs out locally. */
   deleteAccount: (password: string) => Promise<void>;
   /** Everything the server holds for this account. */
@@ -92,6 +98,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
+  const forgotPassword = useCallback(async (email: string) => {
+    await apiForgotPassword({ email });
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+    const res = await apiResetPassword({ token, newPassword });
+    await setToken(TOKEN_KEY, res.token);
+    setUser(res.user);
+  }, []);
+
   const deleteAccount = useCallback(async (password: string) => {
     await apiDeleteAccount({ password });
     await deleteToken(TOKEN_KEY);
@@ -110,6 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         updateName,
         changePassword,
+        forgotPassword,
+        resetPassword,
         deleteAccount,
         exportData,
       }}

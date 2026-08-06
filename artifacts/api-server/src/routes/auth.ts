@@ -1,24 +1,32 @@
+import { createHash, randomBytes } from "node:crypto";
+
 import {
   ChangePasswordBody,
   DeleteAccountBody,
+  ForgotPasswordBody,
   GetCurrentUserResponse,
   LoginBody,
+  ResetPasswordBody,
   SignupBody,
   UpdateProfileBody,
 } from "@workspace/api-zod";
 import {
   db,
+  passwordResetTokensTable,
   practiceSessionsTable,
   swingRecordsTable,
   type User,
   usersTable,
 } from "@workspace/db";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 
+import { config } from "../lib/config";
+import { sendPasswordResetEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 import { type AuthedRequest, requireAuth, signAuthToken } from "../middlewares/auth";
-import { authLimiter, signupLimiter } from "../middlewares/rateLimit";
+import { authLimiter, passwordResetLimiter, signupLimiter } from "../middlewares/rateLimit";
 
 const router: IRouter = Router();
 
@@ -152,6 +160,116 @@ router.patch("/auth/password", requireAuth, authLimiter, async (req: AuthedReque
   res.json({
     token: signAuthToken(updated!.id, updated!.tokenVersion),
     user: toAuthUser(updated!),
+  });
+});
+
+const RESET_TOKEN_BYTES = 32;
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+function hashResetToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+/**
+ * Request a password-reset email.
+ *
+ * Always responds with the same generic message regardless of whether the
+ * email is registered — that's what keeps this endpoint from being usable
+ * to enumerate accounts (see the signup/login timing fix above for the same
+ * principle). The token itself is a random 32-byte value; only its SHA-256
+ * hash is stored, so a database read can never be turned into a working
+ * reset link.
+ */
+router.post("/auth/forgot-password", passwordResetLimiter, async (req, res) => {
+  const parsed = ForgotPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request." });
+    return;
+  }
+
+  const GENERIC_MESSAGE = "If that email has an account, a reset link is on its way.";
+  const email = parsed.data.email.toLowerCase();
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
+  if (!user) {
+    res.json({ message: GENERIC_MESSAGE });
+    return;
+  }
+
+  const token = randomBytes(RESET_TOKEN_BYTES).toString("hex");
+  await db.insert(passwordResetTokensTable).values({
+    userId: user.id,
+    tokenHash: hashResetToken(token),
+    expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+  });
+
+  if (config.appUrl) {
+    const resetUrl = `${config.appUrl}/reset-password?token=${token}`;
+    const sent = await sendPasswordResetEmail(user.email, resetUrl);
+    if (!sent) {
+      // Not surfaced to the caller — the response is generic either way —
+      // but worth knowing about from the logs (e.g. RESEND_API_KEY unset,
+      // or the sandbox sender rejecting a non-account recipient).
+      logger.warn({ userId: user.id }, "Password-reset email could not be sent");
+    }
+  } else {
+    logger.warn("APP_URL/REPLIT_DEV_DOMAIN not set — cannot build a reset link.");
+  }
+
+  res.json({ message: GENERIC_MESSAGE });
+});
+
+/**
+ * Redeem a reset token. Single-use: the token row is marked used in the same
+ * transaction as the password change, so a second redemption attempt — a
+ * retry, a race, or an attacker who intercepted the link after the real
+ * user already used it — fails the same way an unknown token does.
+ */
+router.post("/auth/reset-password", passwordResetLimiter, async (req, res) => {
+  const parsed = ResetPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request." });
+    return;
+  }
+
+  const tokenHash = hashResetToken(parsed.data.token);
+  const result = await db.transaction(async (tx) => {
+    const row = await tx.query.passwordResetTokensTable.findFirst({
+      where: and(
+        eq(passwordResetTokensTable.tokenHash, tokenHash),
+        isNull(passwordResetTokensTable.usedAt),
+      ),
+    });
+    if (!row || row.expiresAt.getTime() < Date.now()) {
+      return null;
+    }
+
+    const passwordHash = await bcrypt.hash(parsed.data.newPassword, BCRYPT_ROUNDS);
+    const [updatedUser] = await tx
+      .update(usersTable)
+      // Bumping tokenVersion here too: a password reset is exactly the
+      // scenario where an attacker might already hold a valid session
+      // (that's plausibly why the legitimate owner is resetting at all).
+      .set({ passwordHash, tokenVersion: sql`${usersTable.tokenVersion} + 1` })
+      .where(eq(usersTable.id, row.userId))
+      .returning();
+
+    await tx
+      .update(passwordResetTokensTable)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokensTable.id, row.id));
+
+    return updatedUser ?? null;
+  });
+
+  if (!result) {
+    res.status(400).json({ error: "This reset link is invalid or has expired." });
+    return;
+  }
+
+  res.json({
+    token: signAuthToken(result.id, result.tokenVersion),
+    user: toAuthUser(result),
   });
 });
 

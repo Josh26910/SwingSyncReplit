@@ -47,6 +47,18 @@ function parseAllowedOrigins(): string[] {
   return replitDomain ? [`https://${replitDomain}`] : [];
 }
 
+/**
+ * The web origin reset-password links point at. Falls back to the same
+ * Replit dev domain the API and CORS allowlist already assume, since the
+ * Expo web build and the API are routed under that one domain.
+ */
+function resolveAppUrl(): string | null {
+  const explicit = process.env.APP_URL;
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const replitDomain = process.env.REPLIT_DEV_DOMAIN;
+  return replitDomain ? `https://${replitDomain}` : null;
+}
+
 export const config = {
   jwtSecret: requiredSecret("JWT_SECRET"),
   adminToken: requiredSecret("ADMIN_TOKEN"),
@@ -55,4 +67,24 @@ export const config = {
   /** JWT issuer/audience — pinned so tokens can't be replayed elsewhere. */
   jwtIssuer: "swingtempo-api",
   jwtAudience: "swingtempo-app",
+
+  /**
+   * Email is optional at boot — not every environment (local dev, CI) needs
+   * to send mail, and failing the whole server over a missing mail provider
+   * would take down signup/login/sync along with it. Routes that need it
+   * (forgot-password) check `email.isConfigured` and degrade explicitly
+   * instead.
+   */
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY ?? null,
+    // onboarding@resend.dev is Resend's shared sandbox sender: it works
+    // with zero setup but can only deliver to the email address on the
+    // Resend account itself, not to real app users. Set FROM_EMAIL to an
+    // address on a verified domain before shipping this to real users.
+    fromEmail: process.env.FROM_EMAIL ?? "SwingTempo <onboarding@resend.dev>",
+    get isConfigured(): boolean {
+      return this.resendApiKey !== null;
+    },
+  },
+  appUrl: resolveAppUrl(),
 } as const;

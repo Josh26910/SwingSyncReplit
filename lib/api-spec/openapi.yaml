@@ -210,6 +210,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password-reset email
+      description: >-
+        Always returns 200 with the same generic message whether or not the
+        email is registered, so the response can't be used to enumerate
+        accounts. If the email belongs to an account, a single-use reset
+        link valid for 30 minutes is sent to it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Request accepted (does not imply an email was sent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Redeem a password-reset token and set a new password
+      description: >-
+        Consumes the token from the emailed link. Revokes every existing
+        session on the account (bumps token version) and signs the caller in
+        with a fresh token, the same as changePassword.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset, with a sign-in token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Token is missing, invalid, expired, or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /sync:
     post:
       operationId: sync
@@ -441,6 +492,33 @@ components:
           type: string
       required:
         - error
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 8
+      required:
+        - token
+        - newPassword
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     DeleteAccountRequest:
       type: object
       properties:

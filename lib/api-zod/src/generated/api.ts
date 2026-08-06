@@ -171,6 +171,43 @@ export const ChangePasswordResponse = zod.object({
 
 
 /**
+ * Always returns 200 with the same generic message whether or not the email is registered, so the response can't be used to enumerate accounts. If the email belongs to an account, a single-use reset link valid for 30 minutes is sent to it.
+ * @summary Request a password-reset email
+ */
+export const ForgotPasswordBody = zod.object({
+  "email": zod.string().email()
+})
+
+export const ForgotPasswordResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * Consumes the token from the emailed link. Revokes every existing session on the account (bumps token version) and signs the caller in with a fresh token, the same as changePassword.
+ * @summary Redeem a password-reset token and set a new password
+ */
+
+export const resetPasswordBodyNewPasswordMin = 8;
+
+
+
+export const ResetPasswordBody = zod.object({
+  "token": zod.string().min(1),
+  "newPassword": zod.string().min(resetPasswordBodyNewPasswordMin)
+})
+
+export const ResetPasswordResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "name": zod.string().nullish()
+})
+})
+
+
+/**
  * Local-first sync: the client sends its current local snapshot, the server upserts it (sessions merged by max duration/swings per day, swing records deduped by id) and returns the full merged dataset for this account. The client replaces its local storage with the response.
  * @summary Push local practice sessions/swing records, get back the merged authoritative set
  */

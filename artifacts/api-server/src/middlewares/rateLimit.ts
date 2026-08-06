@@ -56,6 +56,20 @@ export const syncLimiter = rateLimit({
   ...json("Sync rate limit reached. Your local data is safe — try again shortly."),
 });
 
+/**
+ * Password-reset requests. Stricter than the general auth bucket: each hit
+ * sends an email (a real cost against Resend's free-tier daily cap) and, on
+ * an unthrottled endpoint, an attacker could use it to mail-bomb an
+ * arbitrary inbox by repeatedly requesting resets for someone else's
+ * address. Keyed on IP + email like the login limiter.
+ */
+export const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? "")}:${emailKey(req)}`,
+  ...json("Too many reset requests. Try again in an hour."),
+});
+
 /** Admin mutations: the shared secret has unlimited lifetime, so cap guesses. */
 export const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
