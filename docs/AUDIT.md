@@ -1,7 +1,7 @@
 # SwingTempo — Security & Feature Audit
 
 **Date:** 2026-08-04
-**Status:** all findings resolved except **F5 (password reset)**, which is blocked on a transactional email provider — see that section. Fixes landed on `claude/bug-fixes-presets-profile-3drlo2`.
+**Status:** all findings resolved, including **F5 (password reset)** — implemented via Resend on 2026-08-06. It works end-to-end but can't yet reach real users: no domain is verified in Resend, so it runs on the shared sandbox sender, which only delivers to the email on the Resend account itself. Verify a domain and set `FROM_EMAIL` to close that gap. Fixes landed on `claude/bug-fixes-presets-profile-3drlo2`.
 **Scope:** `artifacts/api-server`, `artifacts/swing-tempo`, `lib/db`, `lib/api-zod`, `lib/api-client-react`, deployment config.
 **Method:** full read of every server route, middleware, schema, and client screen; `pnpm audit`; deployment/env config review. No live pentest was run — this is a code-level audit, so runtime-only issues (TLS config, WAF, infra) are out of scope.
 
@@ -230,7 +230,7 @@ Almost all sit under `@expo/cli`, i.e. build-time tooling rather than shipped ru
 | F2 | **High** | Swing library is in-memory only; imports lost on restart | Fixed |
 | F3 | **High** | Practice time double-counted and inflated by app-idle time | Fixed |
 | F4 | **Medium** | "Pro Swings" tab renders dead, non-interactive cards | Fixed |
-| F5 | **Medium** | Password reset does not exist | **Blocked** — needs an email provider |
+| F5 | **Medium** | Password reset does not exist | Fixed — see below re: sandbox sender limit |
 | F6 | **Medium** | No account deletion or data export | Fixed |
 | F7 | **Medium** | All dates computed in UTC, not local time | Fixed |
 | F8 | **Medium** | Swing records can never be deleted; cap bypassed by sync | Fixed |
@@ -416,7 +416,9 @@ Given the number of gotchas this audit found (UTC dates, double-counted sessions
 
 ## What was done
 
-Every finding above is resolved except **F5 (password reset)**, which cannot be built without a transactional email provider — the same constraint that made auth password-based in the first place (see `replit.md`'s architecture notes). It remains the largest known gap: a forgotten password still means a lost account.
+Every finding above is resolved.
+
+**F5 (password reset)** was the one open item and was closed on 2026-08-06 via Resend (`docs/AUDIT.md` update, `POST /auth/forgot-password` + `POST /auth/reset-password`, `password_reset_tokens` table, `app/reset-password.tsx`). One real limitation remains: no domain is verified in Resend yet, so the server sends from the shared `onboarding@resend.dev` sandbox address — which Resend restricts to delivering only to the email on the Resend account itself. The flow is fully implemented and will work for real users the moment a domain is verified and `FROM_EMAIL` points at it; until then, a forgotten password on a real account still can't be recovered by email. See `replit.md`'s Gotchas section for the exact steps to close this.
 
 Two entries are closed as judgement calls rather than code changes:
 
@@ -429,6 +431,7 @@ Two entries are closed as judgement calls rather than code changes:
 - **`JWT_SECRET` and `ADMIN_TOKEN` must now be at least 32 characters.** They are validated at boot, so a short secret stops the server starting rather than silently weakening it.
 - **Existing auth tokens are invalidated.** They were signed before token versioning, carry no `ver` claim, and are rejected on the next request — every signed-in user signs in once more.
 - **Set `CORS_ALLOWED_ORIGINS`** if the web build is served from anywhere other than `$REPLIT_DEV_DOMAIN`; browsers on other origins are now refused.
+- **Verify a Resend domain and set `FROM_EMAIL`** to actually deliver reset emails to real users — see `replit.md`.
 
 ### Verification
 
