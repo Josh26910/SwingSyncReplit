@@ -1,6 +1,6 @@
-# [Project name]
+# 3to1 Golf
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Golf swing tempo trainer: audio tempo beeps, frame-by-frame swing video analysis (takeaway/top/impact ratio), pro tempo references, and practice tracking. Formerly "SwingTempo" (name was taken on the App Store); the package/folder is still `artifacts/swing-tempo` and on-device storage keys keep the `swingTempo` prefix on purpose so existing installs don't lose data.
 
 ## Run & Operate
 
@@ -27,9 +27,11 @@ _Replace the heading above with the project's name, and this line with one sente
 
 - DB schema (source of truth): `lib/db/src/schema/` — one file per table, e.g. `users.ts`, `practiceSessions.ts`, `swingRecords.ts`
 - API contract (source of truth): `lib/api-spec/openapi.yaml` — edit this, then run the codegen command above; never hand-edit `lib/api-zod/src/generated/**` or `lib/api-client-react/src/generated/**`
-- Account auth: `artifacts/api-server/src/routes/auth.ts` (signup/login/me) + `artifacts/api-server/src/middlewares/auth.ts` (bearer-token verification)
+- Account auth: `artifacts/api-server/src/routes/auth.ts` (signup/login/me, `DELETE /auth/me` account deletion — required by App Store 5.1.1(v); synced rows go via ON DELETE CASCADE) + `artifacts/api-server/src/middlewares/auth.ts` (bearer-token verification)
 - Cloud sync: `artifacts/api-server/src/routes/sync.ts` (server merge) + `artifacts/swing-tempo/hooks/useCloudSync.ts` (client push/pull loop), mounted app-wide via `artifacts/swing-tempo/components/CloudSyncManager.tsx` in `app/_layout.tsx`
 - Tempos tab reference videos: `artifacts/api-server/src/routes/tempoVideos.ts` (admin-gated CRUD + public list) + `artifacts/swing-tempo/app/admin-tempo-videos.tsx` (unlinked admin screen — paste a YouTube URL/id and optional clip start to attach a clip to an entry, no redeploy needed). The videos themselves are never stored/hosted by us — only a `youtubeId` + optional clip-start/end seconds live in the `tempo_videos` table; `artifacts/swing-tempo/data/tempoPlayers.ts`'s static `TEMPO_PLAYERS` array is kept only as an offline/first-load fallback for the Tempos tab.
+
+- Store builds: EAS (`artifacts/swing-tempo/eas.json`). Bundle id / Android package `com.threetoonegolf.app` (permanent after the first store upload). iOS permission strings live in the `expo-image-picker` / `expo-av` plugin entries in `app.json` — don't add `microphonePermission: false` to image-picker, it strips the expo-av mic string Apple requires. **Production builds must set `EXPO_PUBLIC_API_URL`** to the deployed API (e.g. `eas env:create --environment production`); the Replit dev domain sleeps.
 
 ## Architecture decisions
 

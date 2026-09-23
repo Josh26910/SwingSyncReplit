@@ -14,9 +14,16 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.threetoonegolf.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.threetoonegolf.app",
+      "versionCode": 1,
       "backgroundColor": "#000000"
     },
     "web": {
@@ -30,7 +37,20 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "3to1 Golf needs access to your videos so you can choose swing recordings to analyze.",
+          "cameraPermission": false
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "3to1 Golf only plays tempo audio and never records from your microphone."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
