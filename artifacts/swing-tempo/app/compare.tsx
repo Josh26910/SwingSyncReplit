@@ -4,13 +4,13 @@
  * pro's (or last week's swing next to this week's) frame-for-frame.
  */
 import { Feather } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SwingVideo, type SwingVideoHandle } from "@/components/SwingVideo";
 import { useTempo } from "@/context/TempoContext";
 import { useSwingLibrary, type Swing, type SwingOrigin } from "@/context/SwingLibraryContext";
 import { computeSwingAnalysis } from "@/utils/swingAnalysis";
@@ -35,16 +35,16 @@ function CompareSlot({
   label: string;
   swing: Swing;
   perfectRatio: number;
-  videoRef: React.RefObject<Video | null>;
+  videoRef: React.RefObject<SwingVideoHandle | null>;
 }) {
   const analysis = computeSwingAnalysis(swing.markers, perfectRatio);
   return (
     <View style={styles.slot}>
-      <Video
+      <SwingVideo
         ref={videoRef}
         source={{ uri: swing.uri }}
         style={styles.video}
-        resizeMode={ResizeMode.CONTAIN}
+        resizeMode="contain"
         isLooping={false}
       />
       <View style={styles.slotBadgeRow}>
@@ -74,8 +74,8 @@ export default function CompareScreen() {
     bOrigin: SwingOrigin; bId: string;
   }>();
 
-  const videoRefA = useRef<Video>(null);
-  const videoRefB = useRef<Video>(null);
+  const videoRefA = useRef<SwingVideoHandle>(null);
+  const videoRefB = useRef<SwingVideoHandle>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const perfectRatio = gameMode === "short" ? 2.0 : 3.0;

@@ -1,6 +1,4 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Video, ResizeMode } from "expo-av";
-import type { AVPlaybackStatus } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
@@ -22,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SwingVideo, type SwingVideoHandle, type SwingVideoStatus } from "@/components/SwingVideo";
 import { useTempo } from "@/context/TempoContext";
 import {
   EMPTY_MARKERS,
@@ -73,7 +72,7 @@ function toTitleCase(text: string): string {
 export default function AnalysisScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const videoRef = useRef<Video>(null);
+  const videoRef = useRef<SwingVideoHandle>(null);
   const {
     audioMode, setAudioMode, gameMode, setGameMode,
     zoomEnabled, setZoomEnabled,
@@ -349,7 +348,7 @@ export default function AnalysisScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marks.takeaway, marks.top, marks.impact, audioMode]);
 
-  const handleStatus = (status: AVPlaybackStatus) => {
+  const handleStatus = (status: SwingVideoStatus) => {
     if (!status.isLoaded) return;
     // Until our post-load seek-to-0 has actually resolved, ignore whatever
     // position the bridge reports — on some devices the first report or two
@@ -515,12 +514,12 @@ export default function AnalysisScreen() {
               { transform: [{ scale: impactZoomAnim }] },
             ]}
           >
-          <Video
+          <SwingVideo
             key={activeSwing?.id ?? "none"}
             ref={videoRef}
             source={{ uri: videoUri }}
             style={styles.video}
-            resizeMode={ResizeMode.CONTAIN}
+            resizeMode="contain"
             isLooping={false}
             progressUpdateIntervalMillis={MS_PER_FRAME}
             onLoad={() => seekToZeroAndResetClock()}
@@ -540,7 +539,7 @@ export default function AnalysisScreen() {
           )}
           {previewPass > 0 && (
             <Pressable
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               onPress={() => setShowControls((v) => !v)}
             >
               {showControls && (
@@ -608,14 +607,16 @@ export default function AnalysisScreen() {
           {isMarking && (
             <View style={styles.markingOverlay}>
               <View style={styles.overlayScrubBar}>
-                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(-10)}>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(-10)} accessibilityRole="button" accessibilityLabel="Back 10 frames">
                   <Feather name="chevrons-left" size={18} color="#CCC" />
                 </Pressable>
-                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(-1)}>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(-1)} accessibilityRole="button" accessibilityLabel="Previous frame">
                   <Feather name="chevron-left" size={18} color="#FFF" />
                 </Pressable>
                 <Pressable
                   style={styles.overlayPlayBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={isPlaying ? "Pause" : "Play"}
                   onPress={async () => {
                     if (isPlaying) await videoRef.current?.pauseAsync();
                     else await videoRef.current?.playAsync();
@@ -623,10 +624,10 @@ export default function AnalysisScreen() {
                 >
                   <Feather name={isPlaying ? "pause" : "play"} size={20} color="#FFF" />
                 </Pressable>
-                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(1)}>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(1)} accessibilityRole="button" accessibilityLabel="Next frame">
                   <Feather name="chevron-right" size={18} color="#FFF" />
                 </Pressable>
-                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(10)}>
+                <Pressable style={styles.overlayScrubBtn} onPress={() => seekByFrames(10)} accessibilityRole="button" accessibilityLabel="Forward 10 frames">
                   <Feather name="chevrons-right" size={18} color="#CCC" />
                 </Pressable>
               </View>
@@ -962,7 +963,7 @@ const styles = StyleSheet.create({
   video: { width: "100%", height: "100%" },
   videoFullscreen: { width: "100%", height: "100%" },
   centerControlsOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.25)",

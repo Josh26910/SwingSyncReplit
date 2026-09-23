@@ -1,6 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import type { AVPlaybackStatus } from "expo-av";
-import { ResizeMode, Video } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -14,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SwingVideo, type SwingVideoHandle, type SwingVideoStatus } from "@/components/SwingVideo";
 import NumericPromptModal from "@/components/BallTracker/NumericPromptModal";
 import TrackerControlsSheet from "@/components/BallTracker/TrackerControlsSheet";
 import TrackerOverlay, { type TileRect } from "@/components/BallTracker/TrackerOverlay";
@@ -39,7 +38,7 @@ type Mode = "idle" | "launch" | "apex" | "landing" | "calibrate";
 export default function TrackerScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const videoRef = useRef<Video>(null);
+  const videoRef = useRef<SwingVideoHandle>(null);
 
   // --- video state ---
   const [videoUri, setVideoUri] = useState<string | null>(null);
@@ -158,7 +157,7 @@ export default function TrackerScreen() {
     setShowControls(false);
   };
 
-  const onStatus = (status: AVPlaybackStatus) => {
+  const onStatus = (status: SwingVideoStatus) => {
     if (!status.isLoaded) return;
     setDurationMs(status.durationMillis ?? 0);
     setCurrentMs(status.positionMillis ?? 0);
@@ -422,11 +421,11 @@ export default function TrackerScreen() {
                   transform: [{ rotate: `${rotation}deg` }],
                 }}
               >
-                <Video
+                <SwingVideo
                   ref={videoRef}
                   source={{ uri: videoUri }}
                   style={{ width: rawW, height: rawH }}
-                  resizeMode={ResizeMode.CONTAIN}
+                  resizeMode="contain"
                   onPlaybackStatusUpdate={onStatus}
                   onReadyForDisplay={(e: any) => {
                     const n = e?.naturalSize;

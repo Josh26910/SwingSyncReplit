@@ -2,13 +2,13 @@
  * Cross-platform audio for 3to1 Golf.
  *
  * Web  → Web Audio API (unchanged, always worked)
- * Native → expo-av Audio.Sound with WAV files generated and cached on disk
+ * Native → expo-audio players over WAV files generated and cached on disk
  *
  * IMPORTANT: playsInSilentModeIOS must be true or iOS mutes us when the
  * phone is on silent / ring-vibrate.
  */
 
-import { Audio } from "expo-av";
+import { type AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 // SDK 54 replaced expo-file-system's default API with a File/Directory/Paths
 // based one; cacheDirectory/writeAsStringAsync/EncodingType only exist on
 // the legacy subpath.
@@ -166,22 +166,22 @@ function webPiano(freq: number, dur: number) {
 }
 
 /* ──────────────────────────────────────────────────────────────────
-   Native: cache Audio.Sound objects so playback is instant
+   Native: cache expo-audio players so playback is instant
 ─────────────────────────────────────────────────────────────────── */
 
-const cache: Record<string, Promise<Audio.Sound | null>> = {};
+const cache: Record<string, Promise<AudioPlayer | null>> = {};
 let audioModeSet = false;
 
 async function ensureAudioMode() {
   if (audioModeSet) return;
   audioModeSet = true;
   try {
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS:        false,
-      staysActiveInBackground:   false,
-      playsInSilentModeIOS:      true,   // play even on silent/vibrate
-      shouldDuckAndroid:         false,
-      playThroughEarpieceAndroid: false,
+    await setAudioModeAsync({
+      allowsRecording:            false,
+      shouldPlayInBackground:     false,
+      playsInSilentMode:          true,   // play even on silent/vibrate
+      interruptionMode:           "mixWithOthers",
+      shouldRouteThroughEarpiece: false,
     });
   } catch { /* ignore */ }
 }
@@ -197,7 +197,7 @@ function loadNativeSound(
   gain: number,
   wave: "sine" | "triangle" = "sine",
   adsr?: { a: number; d: number; s: number; r: number },
-): Promise<Audio.Sound | null> {
+): Promise<AudioPlayer | null> {
   if (key in cache) return cache[key];
 
   const promise = (async () => {
@@ -209,8 +209,13 @@ function loadNativeSound(
       await FileSystem.writeAsStringAsync(path, b64, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      const { sound } = await Audio.Sound.createAsync({ uri: path });
-      return sound;
+      const player = createAudioPlayer({ uri: path });
+      // Rewind as soon as a beep finishes so the next one is a single play()
+      // call — one native round-trip, like expo-av's replayAsync() was.
+      player.addListener("playbackStatusUpdate", (status) => {
+        if (status.didJustFinish) player.seekTo(0).catch(() => { /* ignore */ });
+      });
+      return player;
     } catch {
       delete cache[key];
       return null;
@@ -230,12 +235,12 @@ async function playNativeSound(
   adsr?: { a: number; d: number; s: number; r: number },
 ) {
   try {
-    const sound = await loadNativeSound(key, freq, dur, gain, wave, adsr);
-    if (!sound) return;
-    // A single replayAsync() call is one native bridge round-trip instead of
-    // three (stop + seek + play) — that saved latency is what keeps beeps
-    // audibly in sync with the video at normal speed.
-    await sound.replayAsync();
+    const player = await loadNativeSound(key, freq, dur, gain, wave, adsr);
+    if (!player) return;
+    // Normally already rewound by the didJustFinish listener; only seek here
+    // if a beep is re-triggered before the previous one finished.
+    if (player.playing || player.currentTime > 0.001) player.seekTo(0).catch(() => { /* ignore */ });
+    player.play();
   } catch { /* ignore */ }
 }
 

@@ -371,7 +371,7 @@ const screen = StyleSheet.create({
   },
   searchInput:   { flex: 1, color: TEXT, fontSize: 14, fontFamily: "Inter_400Regular", padding: 0 },
   list:          { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  overlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: BG, zIndex: 100 },
+  overlay:       { ...StyleSheet.absoluteFill, backgroundColor: BG, zIndex: 100 },
 });
 
 const card = StyleSheet.create({

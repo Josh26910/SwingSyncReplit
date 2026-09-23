@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "threetoonegolf",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
@@ -58,9 +57,18 @@
         }
       ],
       [
-        "expo-av",
+        "expo-audio",
         {
-          "microphonePermission": "3to1 Golf only plays tempo audio and never records from your microphone."
+          "microphonePermission": "3to1 Golf only plays tempo audio and never records from your microphone.",
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
         }
       ]
     ],
