@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "SwingTempo",
-    "slug": "swing-tempo",
+    "name": "3to1 Golf",
+    "slug": "3to1-golf",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "swing-tempo",
+    "scheme": "threetoonegolf",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {

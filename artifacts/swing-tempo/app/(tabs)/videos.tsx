@@ -1,5 +1,5 @@
 /**
- * SwingTempo – Swing Lab tab
+ * 3to1 Golf – Swing Lab tab
  *
  * A library of imported swing videos ("Pro Swings" and "My Swings").
  * Importing a video, or tapping an existing swing card, hands it off to the

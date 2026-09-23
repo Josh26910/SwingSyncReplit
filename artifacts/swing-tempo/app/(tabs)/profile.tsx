@@ -201,7 +201,7 @@ export default function ProfileScreen() {
       if (mode === "signup") {
         await signUp(email.trim(), password, name.trim() || undefined);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAuthBanner("success", "Account created — welcome to SwingTempo!");
+        showAuthBanner("success", "Account created — welcome to 3to1 Golf!");
       } else {
         await signIn(email.trim(), password);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -246,7 +246,7 @@ export default function ProfileScreen() {
       setModalError(null);
       setActiveModal("security");
     } else if (item.id === "app-info") {
-      Alert.alert("SwingTempo", `Version ${APP_VERSION}`);
+      Alert.alert("3to1 Golf", `Version ${APP_VERSION}`);
     }
   };
 
@@ -319,7 +319,7 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>PROFILE</Text>
           <Text style={styles.subtitle}>
-            {user ? "SwingTempo Pro" : "Sign in to sync your data"}
+            {user ? "Your practice is synced" : "Sign in to sync your data"}
           </Text>
         </View>
 
@@ -553,7 +553,7 @@ export default function ProfileScreen() {
                     size={12}
                     color="#FFD700"
                   />
-                  <Text style={styles.badgeText}>SwingTempo Pro</Text>
+                  <Text style={styles.badgeText}>3to1 Golf Member</Text>
                 </View>
               </View>
             </View>
@@ -615,7 +615,7 @@ export default function ProfileScreen() {
           <View style={styles.authSection}>
             <View style={styles.authHeader}>
               <MaterialCommunityIcons name="golf" size={44} color="#1A8CFF" />
-              <Text style={styles.authTitle}>SwingTempo</Text>
+              <Text style={styles.authTitle}>3to1 Golf</Text>
               <Text style={styles.authSubtitle}>
                 {mode === "signup"
                   ? "Create a free account to save your sessions and track improvement"
