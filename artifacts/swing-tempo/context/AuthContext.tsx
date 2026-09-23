@@ -1,5 +1,7 @@
 import {
+  ApiError,
   changePassword as apiChangePassword,
+  deleteAccount as apiDeleteAccount,
   getCurrentUser as apiGetCurrentUser,
   login as apiLogin,
   signup as apiSignup,
@@ -23,6 +25,8 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   updateName: (name: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Permanently deletes the account + synced data server-side, then signs out. */
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -31,6 +35,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // @workspace/api-server is actually deployed — set EXPO_PUBLIC_API_URL.
 setBaseUrl(process.env.EXPO_PUBLIC_API_URL ?? null);
 setAuthTokenGetter(() => getToken(TOKEN_KEY));
+
+// ApiError.message is "HTTP 401 Unauthorized: Invalid email or password." —
+// fine for logs, not for users. Re-throw with just the server's `error` text,
+// or a plain-English fallback when the request never reached the server.
+async function friendly<T>(call: Promise<T>): Promise<T> {
+  try {
+    return await call;
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const data = err.data as { error?: unknown } | null;
+      if (data && typeof data.error === "string" && data.error) throw new Error(data.error);
+      throw new Error("Something went wrong. Please try again.");
+    }
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -55,13 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, name?: string) => {
-    const res = await apiSignup({ email, password, name });
+    const res = await friendly(apiSignup({ email, password, name }));
     await setToken(TOKEN_KEY, res.token);
     setUser(res.user);
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const res = await apiLogin({ email, password });
+    const res = await friendly(apiLogin({ email, password }));
     await setToken(TOKEN_KEY, res.token);
     setUser(res.user);
   }, []);
@@ -72,16 +92,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateName = useCallback(async (name: string) => {
-    setUser(await apiUpdateProfile({ name }));
+    setUser(await friendly(apiUpdateProfile({ name })));
   }, []);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    await apiChangePassword({ currentPassword, newPassword });
+    await friendly(apiChangePassword({ currentPassword, newPassword }));
+  }, []);
+
+  const deleteAccount = useCallback(async (password: string) => {
+    await friendly(apiDeleteAccount({ password }));
+    await deleteToken(TOKEN_KEY);
+    setUser(null);
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, signUp, signIn, signOut, updateName, changePassword }}
+      value={{ user, isLoading, signUp, signIn, signOut, updateName, changePassword, deleteAccount }}
     >
       {children}
     </AuthContext.Provider>

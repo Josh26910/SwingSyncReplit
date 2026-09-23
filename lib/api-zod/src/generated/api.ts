@@ -83,6 +83,17 @@ export const UpdateProfileResponse = zod.object({
 
 
 /**
+ * Requires the account password as confirmation. Practice sessions and swing records are removed via ON DELETE CASCADE. Data stored only on the device is untouched.
+ * @summary Permanently delete the current user's account and all synced data
+ */
+export const DeleteAccountBody = zod.object({
+  "password": zod.string()
+})
+
+export const DeleteAccountResponse = zod.void()
+
+
+/**
  * @summary Change the current user's password
  */
 export const changePasswordBodyNewPasswordMin = 8;

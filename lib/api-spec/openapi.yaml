@@ -123,6 +123,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAccount
+      tags: [auth]
+      summary: Permanently delete the current user's account and all synced data
+      description: >-
+        Requires the account password as confirmation. Practice sessions and
+        swing records are removed via ON DELETE CASCADE. Data stored only on
+        the device is untouched.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountRequest"
+      responses:
+        "204":
+          description: Account deleted
+        "400":
+          description: Password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /auth/password:
     patch:
       operationId: changePassword
@@ -377,6 +408,13 @@ components:
       required:
         - currentPassword
         - newPassword
+    DeleteAccountRequest:
+      type: object
+      properties:
+        password:
+          type: string
+      required:
+        - password
     ErrorResponse:
       type: object
       properties:

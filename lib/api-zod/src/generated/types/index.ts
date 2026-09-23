@@ -9,6 +9,7 @@
 export * from './authResponse';
 export * from './authUser';
 export * from './changePasswordRequest';
+export * from './deleteAccountRequest';
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './listTempoVideosParams';

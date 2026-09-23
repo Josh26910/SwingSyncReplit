@@ -93,11 +93,18 @@ const SETTINGS: SettingItem[] = [
     iconFamily: "feather",
     destructive: true,
   },
+  {
+    id: "delete-account",
+    label: "Delete Account",
+    icon: "trash-2",
+    iconFamily: "feather",
+    destructive: true,
+  },
 ];
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signUp, signIn, signOut, updateName, changePassword } = useAuth();
+  const { user, signUp, signIn, signOut, updateName, changePassword, deleteAccount } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -110,7 +117,7 @@ export default function ProfileScreen() {
   const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [activeModal, setActiveModal] = useState<"edit-profile" | "security" | null>(null);
+  const [activeModal, setActiveModal] = useState<"edit-profile" | "security" | "delete-account" | null>(null);
   const [editNameInput, setEditNameInput] = useState("");
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
@@ -177,6 +184,8 @@ export default function ProfileScreen() {
   const avgRatioThisWeek = avgRatio(thisWeekRecords);
   const avgRatioLastWeek = avgRatio(lastWeekRecords);
   const hasWeeklyActivity = thisWeekSessions.length > 0 || thisWeekRecords.length > 0;
+  const daysPracticed = sessions.filter((s) => s.duration > 0 || (s.swings ?? 0) > 0).length;
+  const allTimeAvgRatio = avgRatio(swingRecords);
 
 
   const openRecordedSwing = (record: SwingRecord) => {
@@ -245,6 +254,9 @@ export default function ProfileScreen() {
     } else if (item.id === "security") {
       setModalError(null);
       setActiveModal("security");
+    } else if (item.id === "delete-account") {
+      setModalError(null);
+      setActiveModal("delete-account");
     } else if (item.id === "app-info") {
       Alert.alert("3to1 Golf", `Version ${APP_VERSION}`);
     }
@@ -284,6 +296,24 @@ export default function ProfileScreen() {
     } catch (err) {
       setModalSaving(false);
       setModalError(err instanceof Error ? err.message : "Couldn't change password.");
+    }
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!currentPasswordInput) {
+      setModalError("Enter your password to confirm.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await deleteAccount(currentPasswordInput);
+      closeModal();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAuthBanner("success", "Your account and synced data have been deleted.");
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't delete account.");
     }
   };
 
@@ -560,9 +590,9 @@ export default function ProfileScreen() {
 
             <View style={styles.statsRow}>
               {[
-                { label: "Sessions", value: "24" },
-                { label: "Best Ratio", value: "3.1:1" },
-                { label: "Avg Accuracy", value: "82%" },
+                { label: "Days", value: String(daysPracticed) },
+                { label: "Swings", value: String(swingRecords.length) },
+                { label: "Avg Ratio", value: allTimeAvgRatio ? `${allTimeAvgRatio.toFixed(1)}:1` : "—" },
               ].map((stat) => (
                 <View key={stat.label} style={styles.statCard}>
                   <Text style={styles.statValue}>{stat.value}</Text>
@@ -828,6 +858,50 @@ export default function ProfileScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalSaveLabel}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeModal === "delete-account"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Delete Account</Text>
+            <Text style={styles.modalBody}>
+              This permanently deletes your account and all practice data synced to it. It can't
+              be undone. Swings and videos saved on this phone stay here.
+            </Text>
+            <Text style={styles.modalLabel}>Password</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={currentPasswordInput}
+              onChangeText={setCurrentPasswordInput}
+              placeholder="Enter your password to confirm"
+              placeholderTextColor="#333333"
+              secureTextEntry
+              autoFocus
+            />
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, styles.modalDeleteBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={confirmDeleteAccount}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>Delete</Text>
                 )}
               </Pressable>
             </View>
@@ -1285,6 +1359,14 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     marginBottom: 8,
   },
+  modalBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#AAAAAA",
+    fontFamily: "Inter_400Regular",
+    marginBottom: 4,
+  },
+  modalDeleteBtn: { backgroundColor: "#FF3B30" },
   modalLabel: {
     fontSize: 11,
     color: "#555555",

@@ -23,6 +23,7 @@ import type {
   AuthResponse,
   AuthUser,
   ChangePasswordRequest,
+  DeleteAccountRequest,
   ErrorResponse,
   HealthStatus,
   ListTempoVideosParams,
@@ -425,6 +426,77 @@ export const useUpdateProfile = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getUpdateProfileMutationOptions(options));
+    }
+
+export const getDeleteAccountUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * Requires the account password as confirmation. Practice sessions and swing records are removed via ON DELETE CASCADE. Data stored only on the device is untouched.
+ * @summary Permanently delete the current user's account and all synced data
+ */
+export const deleteAccount = async (deleteAccountRequest: DeleteAccountRequest, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAccountUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deleteAccountRequest)
+  }
+);}
+
+
+
+
+export const getDeleteAccountMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAccount>>, TError,{data: BodyType<DeleteAccountRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAccount>>, TError,{data: BodyType<DeleteAccountRequest>}, TContext> => {
+
+const mutationKey = ['deleteAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAccount>>, {data: BodyType<DeleteAccountRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  deleteAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAccountMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAccount>>>
+    export type DeleteAccountMutationBody = BodyType<DeleteAccountRequest>
+    export type DeleteAccountMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Permanently delete the current user's account and all synced data
+ */
+export const useDeleteAccount = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAccount>>, TError,{data: BodyType<DeleteAccountRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAccount>>,
+        TError,
+        {data: BodyType<DeleteAccountRequest>},
+        TContext
+      > => {
+      return useMutation(getDeleteAccountMutationOptions(options));
     }
 
 export const getChangePasswordUrl = () => {

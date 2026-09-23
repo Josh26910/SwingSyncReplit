@@ -1,5 +1,6 @@
 import {
   ChangePasswordBody,
+  DeleteAccountBody,
   GetCurrentUserResponse,
   LoginBody,
   SignupBody,
@@ -118,6 +119,26 @@ router.patch("/auth/password", requireAuth, async (req: AuthedRequest, res) => {
     .returning();
 
   res.json(toAuthUser(updated!));
+});
+
+// App Store guideline 5.1.1(v) / Google Play account-deletion policy: any app
+// with account creation must let users delete the account from inside the app.
+// practice_sessions and swing_records rows go with it via ON DELETE CASCADE.
+router.delete("/auth/me", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = DeleteAccountBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid delete-account payload." });
+    return;
+  }
+
+  const matches = await bcrypt.compare(parsed.data.password, req.user!.passwordHash);
+  if (!matches) {
+    res.status(400).json({ error: "Password is incorrect." });
+    return;
+  }
+
+  await db.delete(usersTable).where(eq(usersTable.id, req.user!.id));
+  res.status(204).end();
 });
 
 export default router;
