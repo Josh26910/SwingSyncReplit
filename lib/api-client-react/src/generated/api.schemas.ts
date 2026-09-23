@@ -42,6 +42,22 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  /** @pattern ^[0-9]{6}$ */
+  code: string;
+  /** @minLength 8 */
+  newPassword: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
 export interface DeleteAccountRequest {
   password: string;
 }

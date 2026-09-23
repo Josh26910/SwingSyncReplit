@@ -2,6 +2,8 @@ import {
   ApiError,
   changePassword as apiChangePassword,
   deleteAccount as apiDeleteAccount,
+  forgotPassword as apiForgotPassword,
+  resetPassword as apiResetPassword,
   getCurrentUser as apiGetCurrentUser,
   login as apiLogin,
   signup as apiSignup,
@@ -25,6 +27,10 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   updateName: (name: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Emails a 6-digit reset code (server responds the same whether or not the account exists). */
+  requestPasswordReset: (email: string) => Promise<void>;
+  /** Sets a new password with the emailed code and signs the user in. */
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
   /** Permanently deletes the account + synced data server-side, then signs out. */
   deleteAccount: (password: string) => Promise<void>;
 }
@@ -99,6 +105,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await friendly(apiChangePassword({ currentPassword, newPassword }));
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    await friendly(apiForgotPassword({ email }));
+  }, []);
+
+  const resetPassword = useCallback(async (email: string, code: string, newPassword: string) => {
+    const res = await friendly(apiResetPassword({ email, code, newPassword }));
+    await setToken(TOKEN_KEY, res.token);
+    setUser(res.user);
+  }, []);
+
   const deleteAccount = useCallback(async (password: string) => {
     await friendly(apiDeleteAccount({ password }));
     await deleteToken(TOKEN_KEY);
@@ -107,7 +123,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, signUp, signIn, signOut, updateName, changePassword, deleteAccount }}
+      value={{
+        user,
+        isLoading,
+        signUp,
+        signIn,
+        signOut,
+        updateName,
+        changePassword,
+        requestPasswordReset,
+        resetPassword,
+        deleteAccount,
+      }}
     >
       {children}
     </AuthContext.Provider>

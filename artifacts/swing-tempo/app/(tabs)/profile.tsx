@@ -104,7 +104,17 @@ const SETTINGS: SettingItem[] = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signUp, signIn, signOut, updateName, changePassword, deleteAccount } = useAuth();
+  const {
+    user,
+    signUp,
+    signIn,
+    signOut,
+    updateName,
+    changePassword,
+    requestPasswordReset,
+    resetPassword,
+    deleteAccount,
+  } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -117,7 +127,12 @@ export default function ProfileScreen() {
   const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [activeModal, setActiveModal] = useState<"edit-profile" | "security" | "delete-account" | null>(null);
+  const [activeModal, setActiveModal] = useState<
+    "edit-profile" | "security" | "delete-account" | "forgot-password" | null
+  >(null);
+  const [forgotStep, setForgotStep] = useState<"email" | "code">("email");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetCodeInput, setResetCodeInput] = useState("");
   const [editNameInput, setEditNameInput] = useState("");
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
@@ -234,6 +249,57 @@ export default function ProfileScreen() {
     setModalSaving(false);
     setCurrentPasswordInput("");
     setNewPasswordInput("");
+    setResetCodeInput("");
+  };
+
+  const openForgotPassword = () => {
+    Haptics.selectionAsync();
+    setModalError(null);
+    setForgotStep("email");
+    setForgotEmail(email.trim());
+    setResetCodeInput("");
+    setNewPasswordInput("");
+    setActiveModal("forgot-password");
+  };
+
+  const sendResetCode = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(forgotEmail.trim())) {
+      setModalError("Enter the email you signed up with.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await requestPasswordReset(forgotEmail.trim());
+      setForgotStep("code");
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Couldn't send the code.");
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  const submitPasswordReset = async () => {
+    if (!/^\d{6}$/.test(resetCodeInput.trim())) {
+      setModalError("Enter the 6-digit code from the email.");
+      return;
+    }
+    if (newPasswordInput.length < 8) {
+      setModalError("New password must be at least 8 characters.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await resetPassword(forgotEmail.trim(), resetCodeInput.trim(), newPasswordInput);
+      closeModal();
+      setPassword("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAuthBanner("success", "Password reset — you're signed in.");
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't reset password.");
+    }
   };
 
   const handleSettingPress = (item: SettingItem) => {
@@ -743,12 +809,7 @@ export default function ProfileScreen() {
               {mode === "signin" && (
                 <Pressable
                   style={styles.forgotBtn}
-                  onPress={() =>
-                    Alert.alert(
-                      "Not Available Yet",
-                      "Password reset isn't set up yet — check back soon."
-                    )
-                  }
+                  onPress={openForgotPassword}
                 >
                   <Text style={styles.forgotLabel}>Forgot Password?</Text>
                 </Pressable>
@@ -858,6 +919,95 @@ export default function ProfileScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalSaveLabel}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeModal === "forgot-password"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            {forgotStep === "email" ? (
+              <>
+                <Text style={styles.modalBody}>
+                  Enter your account email and we'll send you a 6-digit code.
+                </Text>
+                <Text style={styles.modalLabel}>Email</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={forgotEmail}
+                  onChangeText={setForgotEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor="#333333"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoFocus
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalBody}>
+                  If {forgotEmail.trim()} has an account, a code is on its way. It expires in 15
+                  minutes — check your spam folder if it doesn't arrive.
+                </Text>
+                <Text style={styles.modalLabel}>6-digit code</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={resetCodeInput}
+                  onChangeText={(t) => setResetCodeInput(t.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  placeholderTextColor="#333333"
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  autoFocus
+                />
+                <Text style={styles.modalLabel}>New password</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newPasswordInput}
+                  onChangeText={setNewPasswordInput}
+                  placeholder="At least 8 characters"
+                  placeholderTextColor="#333333"
+                  secureTextEntry
+                  textContentType="newPassword"
+                />
+                <Pressable
+                  onPress={() => {
+                    setModalError(null);
+                    setForgotStep("email");
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.modalLinkText}>Didn't get it? Send a new code</Text>
+                </Pressable>
+              </>
+            )}
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={forgotStep === "email" ? sendResetCode : submitPasswordReset}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>
+                    {forgotStep === "email" ? "Send Code" : "Reset"}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -1367,6 +1517,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalDeleteBtn: { backgroundColor: "#FF3B30" },
+  modalLinkText: {
+    fontSize: 12,
+    color: "#1A8CFF",
+    fontFamily: "Inter_500Medium",
+    marginTop: 6,
+  },
   modalLabel: {
     fontSize: 11,
     color: "#555555",
