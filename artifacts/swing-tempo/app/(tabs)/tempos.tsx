@@ -257,7 +257,7 @@ export default function TemposScreen() {
     <View style={[screen.root, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={screen.header}>
-        <Text style={screen.tagline}>Copy the best, at their best.</Text>
+        <Text style={screen.tagline}>Borrow a pro's rhythm.</Text>
       </View>
 
       {/* Category tabs */}

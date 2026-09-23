@@ -93,11 +93,28 @@ const SETTINGS: SettingItem[] = [
     iconFamily: "feather",
     destructive: true,
   },
+  {
+    id: "delete-account",
+    label: "Delete Account",
+    icon: "trash-2",
+    iconFamily: "feather",
+    destructive: true,
+  },
 ];
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, signUp, signIn, signOut, updateName, changePassword } = useAuth();
+  const {
+    user,
+    signUp,
+    signIn,
+    signOut,
+    updateName,
+    changePassword,
+    requestPasswordReset,
+    resetPassword,
+    deleteAccount,
+  } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -110,7 +127,12 @@ export default function ProfileScreen() {
   const [authBanner, setAuthBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [activeModal, setActiveModal] = useState<"edit-profile" | "security" | null>(null);
+  const [activeModal, setActiveModal] = useState<
+    "edit-profile" | "security" | "delete-account" | "forgot-password" | null
+  >(null);
+  const [forgotStep, setForgotStep] = useState<"email" | "code">("email");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetCodeInput, setResetCodeInput] = useState("");
   const [editNameInput, setEditNameInput] = useState("");
   const [currentPasswordInput, setCurrentPasswordInput] = useState("");
   const [newPasswordInput, setNewPasswordInput] = useState("");
@@ -177,6 +199,8 @@ export default function ProfileScreen() {
   const avgRatioThisWeek = avgRatio(thisWeekRecords);
   const avgRatioLastWeek = avgRatio(lastWeekRecords);
   const hasWeeklyActivity = thisWeekSessions.length > 0 || thisWeekRecords.length > 0;
+  const daysPracticed = sessions.filter((s) => s.duration > 0 || (s.swings ?? 0) > 0).length;
+  const allTimeAvgRatio = avgRatio(swingRecords);
 
 
   const openRecordedSwing = (record: SwingRecord) => {
@@ -201,7 +225,7 @@ export default function ProfileScreen() {
       if (mode === "signup") {
         await signUp(email.trim(), password, name.trim() || undefined);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAuthBanner("success", "Account created — welcome to SwingTempo!");
+        showAuthBanner("success", "Account created — welcome to 3to1 Golf!");
       } else {
         await signIn(email.trim(), password);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -225,6 +249,57 @@ export default function ProfileScreen() {
     setModalSaving(false);
     setCurrentPasswordInput("");
     setNewPasswordInput("");
+    setResetCodeInput("");
+  };
+
+  const openForgotPassword = () => {
+    Haptics.selectionAsync();
+    setModalError(null);
+    setForgotStep("email");
+    setForgotEmail(email.trim());
+    setResetCodeInput("");
+    setNewPasswordInput("");
+    setActiveModal("forgot-password");
+  };
+
+  const sendResetCode = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(forgotEmail.trim())) {
+      setModalError("Enter the email you signed up with.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await requestPasswordReset(forgotEmail.trim());
+      setForgotStep("code");
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : "Couldn't send the code.");
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  const submitPasswordReset = async () => {
+    if (!/^\d{6}$/.test(resetCodeInput.trim())) {
+      setModalError("Enter the 6-digit code from the email.");
+      return;
+    }
+    if (newPasswordInput.length < 8) {
+      setModalError("New password must be at least 8 characters.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await resetPassword(forgotEmail.trim(), resetCodeInput.trim(), newPasswordInput);
+      closeModal();
+      setPassword("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAuthBanner("success", "Password reset — you're signed in.");
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't reset password.");
+    }
   };
 
   const handleSettingPress = (item: SettingItem) => {
@@ -245,8 +320,11 @@ export default function ProfileScreen() {
     } else if (item.id === "security") {
       setModalError(null);
       setActiveModal("security");
+    } else if (item.id === "delete-account") {
+      setModalError(null);
+      setActiveModal("delete-account");
     } else if (item.id === "app-info") {
-      Alert.alert("SwingTempo", `Version ${APP_VERSION}`);
+      Alert.alert("3to1 Golf", `Version ${APP_VERSION}`);
     }
   };
 
@@ -287,6 +365,24 @@ export default function ProfileScreen() {
     }
   };
 
+  const confirmDeleteAccount = async () => {
+    if (!currentPasswordInput) {
+      setModalError("Enter your password to confirm.");
+      return;
+    }
+    setModalSaving(true);
+    setModalError(null);
+    try {
+      await deleteAccount(currentPasswordInput);
+      closeModal();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showAuthBanner("success", "Your account and synced data have been deleted.");
+    } catch (err) {
+      setModalSaving(false);
+      setModalError(err instanceof Error ? err.message : "Couldn't delete account.");
+    }
+  };
+
   const renderIcon = (item: SettingItem, color: string) => {
     if (item.iconFamily === "mci") {
       return (
@@ -319,7 +415,7 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>PROFILE</Text>
           <Text style={styles.subtitle}>
-            {user ? "SwingTempo Pro" : "Sign in to sync your data"}
+            {user ? "Your practice is synced" : "Sign in to sync your data"}
           </Text>
         </View>
 
@@ -553,16 +649,16 @@ export default function ProfileScreen() {
                     size={12}
                     color="#FFD700"
                   />
-                  <Text style={styles.badgeText}>SwingTempo Pro</Text>
+                  <Text style={styles.badgeText}>3to1 Golf Member</Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.statsRow}>
               {[
-                { label: "Sessions", value: "24" },
-                { label: "Best Ratio", value: "3.1:1" },
-                { label: "Avg Accuracy", value: "82%" },
+                { label: "Days", value: String(daysPracticed) },
+                { label: "Swings", value: String(swingRecords.length) },
+                { label: "Avg Ratio", value: allTimeAvgRatio ? `${allTimeAvgRatio.toFixed(1)}:1` : "—" },
               ].map((stat) => (
                 <View key={stat.label} style={styles.statCard}>
                   <Text style={styles.statValue}>{stat.value}</Text>
@@ -615,7 +711,7 @@ export default function ProfileScreen() {
           <View style={styles.authSection}>
             <View style={styles.authHeader}>
               <MaterialCommunityIcons name="golf" size={44} color="#1A8CFF" />
-              <Text style={styles.authTitle}>SwingTempo</Text>
+              <Text style={styles.authTitle}>3to1 Golf</Text>
               <Text style={styles.authSubtitle}>
                 {mode === "signup"
                   ? "Create a free account to save your sessions and track improvement"
@@ -713,12 +809,7 @@ export default function ProfileScreen() {
               {mode === "signin" && (
                 <Pressable
                   style={styles.forgotBtn}
-                  onPress={() =>
-                    Alert.alert(
-                      "Not Available Yet",
-                      "Password reset isn't set up yet — check back soon."
-                    )
-                  }
+                  onPress={openForgotPassword}
                 >
                   <Text style={styles.forgotLabel}>Forgot Password?</Text>
                 </Pressable>
@@ -828,6 +919,139 @@ export default function ProfileScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.modalSaveLabel}>Save</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeModal === "forgot-password"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            {forgotStep === "email" ? (
+              <>
+                <Text style={styles.modalBody}>
+                  Enter your account email and we'll send you a 6-digit code.
+                </Text>
+                <Text style={styles.modalLabel}>Email</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={forgotEmail}
+                  onChangeText={setForgotEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor="#333333"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoFocus
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalBody}>
+                  If {forgotEmail.trim()} has an account, a code is on its way. It expires in 15
+                  minutes — check your spam folder if it doesn't arrive.
+                </Text>
+                <Text style={styles.modalLabel}>6-digit code</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={resetCodeInput}
+                  onChangeText={(t) => setResetCodeInput(t.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  placeholderTextColor="#333333"
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  autoFocus
+                />
+                <Text style={styles.modalLabel}>New password</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newPasswordInput}
+                  onChangeText={setNewPasswordInput}
+                  placeholder="At least 8 characters"
+                  placeholderTextColor="#333333"
+                  secureTextEntry
+                  textContentType="newPassword"
+                />
+                <Pressable
+                  onPress={() => {
+                    setModalError(null);
+                    setForgotStep("email");
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={styles.modalLinkText}>Didn't get it? Send a new code</Text>
+                </Pressable>
+              </>
+            )}
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={forgotStep === "email" ? sendResetCode : submitPasswordReset}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>
+                    {forgotStep === "email" ? "Send Code" : "Reset"}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeModal === "delete-account"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Delete Account</Text>
+            <Text style={styles.modalBody}>
+              This permanently deletes your account and all practice data synced to it. It can't
+              be undone. Swings and videos saved on this phone stay here.
+            </Text>
+            <Text style={styles.modalLabel}>Password</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={currentPasswordInput}
+              onChangeText={setCurrentPasswordInput}
+              placeholder="Enter your password to confirm"
+              placeholderTextColor="#333333"
+              secureTextEntry
+              autoFocus
+            />
+            {modalError && <Text style={styles.modalErrorText}>{modalError}</Text>}
+            <View style={styles.modalBtnRow}>
+              <Pressable style={styles.modalCancelBtn} onPress={closeModal}>
+                <Text style={styles.modalCancelLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSaveBtn, styles.modalDeleteBtn, modalSaving && { opacity: 0.7 }]}
+                onPress={confirmDeleteAccount}
+                disabled={modalSaving}
+              >
+                {modalSaving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSaveLabel}>Delete</Text>
                 )}
               </Pressable>
             </View>
@@ -1284,6 +1508,20 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Inter_700Bold",
     marginBottom: 8,
+  },
+  modalBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#AAAAAA",
+    fontFamily: "Inter_400Regular",
+    marginBottom: 4,
+  },
+  modalDeleteBtn: { backgroundColor: "#FF3B30" },
+  modalLinkText: {
+    fontSize: 12,
+    color: "#1A8CFF",
+    fontFamily: "Inter_500Medium",
+    marginTop: 6,
   },
   modalLabel: {
     fontSize: 11,

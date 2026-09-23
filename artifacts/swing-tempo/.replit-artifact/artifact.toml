@@ -1,6 +1,6 @@
 kind = "mobile"
 previewPath = "/"
-title = "SwingTempo"
+title = "3to1 Golf"
 version = "1.0.0"
 id = "artifacts/swing-tempo"
 router = "expo-domain"

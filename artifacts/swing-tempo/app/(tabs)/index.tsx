@@ -144,7 +144,7 @@ export default function TonesScreen() {
     >
       {/* ── Header ─────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <Text style={styles.appTitle}>SWING TEMPO</Text>
+        <Text style={styles.appTitle}>3TO1 GOLF</Text>
         <View style={styles.phaseChip}>
           <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
           <Text style={[styles.phaseText, { color: phaseColor }]}>{phaseLabel}</Text>

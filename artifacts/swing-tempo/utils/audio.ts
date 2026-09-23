@@ -1,5 +1,5 @@
 /**
- * Cross-platform audio for SwingTempo.
+ * Cross-platform audio for 3to1 Golf.
  *
  * Web  → Web Audio API (unchanged, always worked)
  * Native → expo-av Audio.Sound with WAV files generated and cached on disk

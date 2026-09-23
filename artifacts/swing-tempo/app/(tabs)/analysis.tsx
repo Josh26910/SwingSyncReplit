@@ -601,7 +601,7 @@ export default function AnalysisScreen() {
           )}
           <View style={styles.watermark} pointerEvents="none">
             <Image source={require("../../assets/images/icon.png")} style={styles.watermarkIcon} />
-            <Text style={styles.watermarkTitle}>SwingTempo</Text>
+            <Text style={styles.watermarkTitle}>3to1 Golf</Text>
             <Text style={styles.watermarkCta}>Download Free</Text>
           </View>
 

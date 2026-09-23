@@ -59,6 +59,43 @@ export const LoginResponse = zod.object({
 
 
 /**
+ * Always returns 200, whether or not the email has an account, so the endpoint can't be used to discover registered emails.
+ * @summary Email a 6-digit password reset code
+ */
+export const ForgotPasswordBody = zod.object({
+  "email": zod.string().email()
+})
+
+export const ForgotPasswordResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Set a new password using an emailed reset code, and sign in
+ */
+export const resetPasswordBodyCodeRegExp = new RegExp('^[0-9]{6}$');
+export const resetPasswordBodyNewPasswordMin = 8;
+
+
+
+export const ResetPasswordBody = zod.object({
+  "email": zod.string().email(),
+  "code": zod.string().regex(resetPasswordBodyCodeRegExp),
+  "newPassword": zod.string().min(resetPasswordBodyNewPasswordMin)
+})
+
+export const ResetPasswordResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string().uuid(),
+  "email": zod.string().email(),
+  "name": zod.string().nullish()
+})
+})
+
+
+/**
  * @summary Get the current authenticated user
  */
 export const GetCurrentUserResponse = zod.object({
@@ -80,6 +117,17 @@ export const UpdateProfileResponse = zod.object({
   "email": zod.string().email(),
   "name": zod.string().nullish()
 })
+
+
+/**
+ * Requires the account password as confirmation. Practice sessions and swing records are removed via ON DELETE CASCADE. Data stored only on the device is untouched.
+ * @summary Permanently delete the current user's account and all synced data
+ */
+export const DeleteAccountBody = zod.object({
+  "password": zod.string()
+})
+
+export const DeleteAccountResponse = zod.void()
 
 
 /**
