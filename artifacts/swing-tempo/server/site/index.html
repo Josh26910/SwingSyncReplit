@@ -2,23 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>3to1 Golf — Swing Tempo Trainer</title>
-  <meta name="description" content="Hear the 3:1 tempo tour players swing to, then see frame by frame how close your swing got. A golf tempo trainer for iPhone.">
-  <meta name="theme-color" content="#000000">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>3to1 Golf — Swing tempo trainer for iPhone</title>
+  <meta name="description" content="Every good swing keeps time: three beats back, one beat through. 3to1 Golf plays that rhythm in your ear, then shows you on video how close you got.">
+  <meta name="theme-color" content="#fbfaf7">
   <meta property="og:title" content="3to1 Golf — Find your 3:1">
-  <meta property="og:description" content="Hear the 3:1 tempo tour players swing to, then see frame by frame how close your swing got.">
+  <meta property="og:description" content="Three beats back, one beat through. A golf swing tempo trainer for iPhone.">
   <meta property="og:type" content="website">
   <link rel="icon" href="/site/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400..600;1,8..60,400&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/site/site.css">
+  <script>document.documentElement.classList.add("js");</script>
+  <script src="/site/site.js" defer></script>
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
+
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/"><img src="/site/logo.svg" alt=""><span>3to1 Golf</span></a>
+      <a class="brand" href="/"><img src="/site/favicon.svg" alt="" width="26" height="26">3to1 Golf</a>
       <nav class="nav" aria-label="Main">
         <a href="/support">Support</a>
         <a href="/privacy">Privacy</a>
@@ -26,94 +30,163 @@
     </div>
   </header>
 
-  <main>
-    <div class="hero">
+  <main id="main">
+    <section class="hero">
       <div class="wrap">
-        <span class="eyebrow">Golf swing tempo trainer</span>
-        <h1>Find your <span class="ratio">3:1</span>.</h1>
-        <p class="lede">Great swings share a rhythm: the backswing takes about three times as long as the downswing. 3to1 Golf plays that rhythm in your ear, then shows you frame by frame how close your swing got.</p>
-        <span class="pill"><span class="dot" aria-hidden="true"></span>Coming soon to iPhone</span>
-
-        <div class="tempo-demo" aria-label="Animation: three beats for the backswing, then one for impact">
-          <div class="beats" aria-hidden="true">
-            <div class="beat"></div>
-            <div class="beat"></div>
-            <div class="beat"></div>
-            <div class="hit"></div>
+        <div>
+          <h1 class="display">Find your <em>3:1</em>.</h1>
+          <p class="lead">Every good swing keeps time. The backswing takes three beats, the downswing takes one. 3to1 Golf plays that rhythm in your ear, then shows you on video how close you got.</p>
+          <div class="hero-meta">
+            <span class="soon">Coming soon to iPhone</span>
+            <a class="arrow-link down" href="#hear">Hear a tempo
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2v10M3 8l4 4 4-4"/></svg>
+            </a>
           </div>
-          <div class="beat-labels" aria-hidden="true"><span>Back · two · three</span><span>Hit</span></div>
+        </div>
+        <div class="phone">
+          <img src="/site/media/app-tones.webp" width="780" height="1688" fetchpriority="high"
+               alt="The 3to1 Golf Tones screen with the 21/7 tempo selected: a 3:1 ratio, 0.70 seconds of backswing and 0.23 seconds of downswing.">
         </div>
       </div>
-    </div>
+    </section>
 
-    <section id="how">
-      <div class="wrap">
-        <div class="section-head">
-          <h2>Hear it. Swing it. See it.</h2>
-          <p>Tempo is easier to feel than to think about. Train it by ear, then check it on video.</p>
-        </div>
-        <div class="steps">
-          <div class="step">
-            <h3>Hear it</h3>
-            <p>Pick a tempo and the app plays three tones: start back, top of the swing, impact. Use beeps or a spoken cue.</p>
+    <section class="rhythm" aria-labelledby="rhythm-title">
+      <div class="rhythm-pin">
+        <div class="wrap">
+          <div class="rhythm-grid">
+            <div>
+              <h2 class="headline" id="rhythm-title">Three beats back. One beat through.</h2>
+              <p class="body">This is 21/7, one of five full-swing tempos in the app: 21 frames of video to reach the top, 7 to get back to the ball. Scroll to swing through it.</p>
+            </div>
+            <div class="readout num" aria-hidden="true">
+              <div><b data-readout="time">0.93s</b><span>Elapsed</span></div>
+              <div><b data-readout="frame">28</b><span>of 28 frames</span></div>
+            </div>
           </div>
-          <div class="step">
-            <h3>Swing it</h3>
-            <p>Swing to the tones at the range or at home. Film a swing on your phone whenever you want to check it.</p>
-          </div>
-          <div class="step">
-            <h3>See it</h3>
-            <p>Load the video, mark takeaway, top and impact, and get your real backswing-to-downswing ratio.</p>
+
+          <div class="track" data-track role="img"
+               aria-label="Timeline of a 21/7 swing: 0.70 seconds from the start to the top, then 0.23 seconds from the top to impact. The backswing is three equal beats and the downswing is one.">
+            <div class="track-bar"><i class="track-fill back"></i><i class="track-fill down"></i></div>
+            <div class="marks" aria-hidden="true">
+              <i class="mark" data-at="0" style="left:0%"></i>
+              <i class="mark" data-at="0.75" style="left:75%"></i>
+              <i class="mark hit" data-at="1" style="left:100%"></i>
+            </div>
+            <div class="mark-labels" aria-hidden="true">
+              <span style="left:0%">Start<span class="wide"> tone</span></span>
+              <span style="left:75%">Top<span class="wide"> tone</span></span>
+              <span style="left:100%">Impact<span class="wide"> tone</span></span>
+            </div>
+            <div class="track-units" aria-hidden="true">
+              <div class="unit" data-from="0"><strong>One</strong><small>7 frames</small></div>
+              <div class="unit" data-from="0.25"><strong>Two</strong><small>7 frames</small></div>
+              <div class="unit" data-from="0.5"><strong>Three</strong><small>7 frames</small></div>
+              <div class="unit down" data-from="0.75"><strong>Hit</strong><small>7 frames</small></div>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="features">
+    <section class="chapter" id="hear" aria-labelledby="hear-title">
       <div class="wrap">
-        <div class="section-head">
-          <h2>Everything you need to build a repeatable rhythm</h2>
+        <div class="chapter-head reveal">
+          <h2 class="headline" id="hear-title">Pick a tempo. Hear it.</h2>
+          <p class="body">Three tones mark the start, the top and impact. There are five 3:1 tempos for full swings and six 2:1 tempos for chips, pitches and putts, each named by its frame count at 30 frames a second.</p>
         </div>
-        <div class="features">
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></div>
-            <h3>Tempo tones</h3>
-            <p>Five 3:1 tempos for full swings and six 2:1 tempos for chips, pitches and putts, from smooth to tour-quick.</p>
+
+        <div class="ladder reveal" data-ladder>
+          <div class="ladder-bar">
+            <div class="seg" role="group" aria-label="Game">
+              <button type="button" data-game="long" aria-pressed="true">Long game · 3:1</button>
+              <button type="button" data-game="short" aria-pressed="false">Short game · 2:1</button>
+            </div>
+            <div class="seg" role="group" aria-label="Sound">
+              <button type="button" data-sound="tones" aria-pressed="true">Tones</button>
+              <button type="button" data-sound="piano" aria-pressed="false">Piano</button>
+            </div>
           </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg></div>
-            <h3>Frame-by-frame analysis</h3>
-            <p>Scrub through your swing, mark the key positions, and replay impact in slow motion.</p>
+
+          <!-- Real presets from context/TempoContext.tsx (topMs / impactMs). Bars share one scale: 1333 ms = full width. -->
+          <ul class="rows" data-list="long">
+            <li><button type="button" class="row" data-top="600" data-impact="800"><span class="row-name">18/6</span><span class="row-bar"><i class="back" style="width:45.0%"></i><i class="down" style="left:45.0%;width:15.0%"></i><i class="head"></i></span><span class="row-time num">0.60s + 0.20s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="700" data-impact="933"><span class="row-name">21/7</span><span class="row-bar"><i class="back" style="width:52.5%"></i><i class="down" style="left:52.5%;width:17.5%"></i><i class="head"></i></span><span class="row-time num">0.70s + 0.23s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="800" data-impact="1067"><span class="row-name">24/8</span><span class="row-bar"><i class="back" style="width:60.0%"></i><i class="down" style="left:60.0%;width:20.0%"></i><i class="head"></i></span><span class="row-time num">0.80s + 0.27s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="900" data-impact="1200"><span class="row-name">27/9</span><span class="row-bar"><i class="back" style="width:67.5%"></i><i class="down" style="left:67.5%;width:22.5%"></i><i class="head"></i></span><span class="row-time num">0.90s + 0.30s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="1000" data-impact="1333"><span class="row-name">30/10</span><span class="row-bar"><i class="back" style="width:75.0%"></i><i class="down" style="left:75.0%;width:25.0%"></i><i class="head"></i></span><span class="row-time num">1.00s + 0.33s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+          </ul>
+          <ul class="rows" data-list="short" hidden>
+            <li><button type="button" class="row" data-top="467" data-impact="700"><span class="row-name">14/7</span><span class="row-bar"><i class="back" style="width:35.0%"></i><i class="down" style="left:35.0%;width:17.5%"></i><i class="head"></i></span><span class="row-time num">0.47s + 0.23s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="533" data-impact="800"><span class="row-name">16/8</span><span class="row-bar"><i class="back" style="width:40.0%"></i><i class="down" style="left:40.0%;width:20.0%"></i><i class="head"></i></span><span class="row-time num">0.53s + 0.27s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="600" data-impact="900"><span class="row-name">18/9</span><span class="row-bar"><i class="back" style="width:45.0%"></i><i class="down" style="left:45.0%;width:22.5%"></i><i class="head"></i></span><span class="row-time num">0.60s + 0.30s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="667" data-impact="1000"><span class="row-name">20/10</span><span class="row-bar"><i class="back" style="width:50.0%"></i><i class="down" style="left:50.0%;width:25.0%"></i><i class="head"></i></span><span class="row-time num">0.67s + 0.33s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="733" data-impact="1100"><span class="row-name">22/11</span><span class="row-bar"><i class="back" style="width:55.0%"></i><i class="down" style="left:55.0%;width:27.5%"></i><i class="head"></i></span><span class="row-time num">0.73s + 0.37s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+            <li><button type="button" class="row" data-top="800" data-impact="1200"><span class="row-name">24/12</span><span class="row-bar"><i class="back" style="width:60.0%"></i><i class="down" style="left:60.0%;width:30.0%"></i><i class="head"></i></span><span class="row-time num">0.80s + 0.40s</span><span class="row-play" aria-hidden="true"><svg viewBox="0 0 14 14" fill="currentColor"><path d="M3.5 2.2v9.6L11.8 7z"/></svg></span></button></li>
+          </ul>
+
+          <div class="ladder-foot">
+            <span><span class="key"><i style="background:var(--ink)"></i>Backswing</span> &nbsp; <span class="key"><i style="background:var(--yellow)"></i>Downswing</span></span>
+            <span>Bars drawn to scale. Tap a tempo to hear it.</span>
           </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
-            <h3>Pro reference tempos</h3>
-            <p>See the ratios of famous swings and practice to a pro's rhythm instead of a preset.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
-            <h3>Ball tracker</h3>
-            <p>Trace the ball's flight on your swing video for a launch-monitor style view of every shot.</p>
-          </div>
-          <div class="feature">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
-            <h3>Practice tracking</h3>
-            <p>Practice time, swings analyzed and your daily streak, with a year-long activity grid.</p>
-          </div>
-          <div class="feature accent">
-            <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-            <h3>Your videos stay yours</h3>
-            <p>Swing videos never leave your phone. No ads, no tracking. An account is optional and only syncs your stats.</p>
-          </div>
+          <p class="sr-only" data-status role="status" aria-live="polite"></p>
         </div>
       </div>
     </section>
 
-    <section class="cta">
+    <section class="chapter" aria-labelledby="see-title">
+      <div class="wrap split">
+        <div class="reveal">
+          <h2 class="headline" id="see-title">Then check it on video.</h2>
+          <ol class="steps">
+            <li><span><strong>Film</strong> any swing on your phone. Slow motion gives the most precise result.</span></li>
+            <li><span><strong>Mark</strong> takeaway, the top and impact as you step through the frames.</span></li>
+            <li><span><strong>Read</strong> your real ratio and how close it came to your target, then watch impact again in slow motion.</span></li>
+          </ol>
+        </div>
+        <!-- ASSET SLOT "analysis-demo" (see DESIGN.md). When the recording exists, replace this figure with:
+             <div class="phone reveal"><video src="/site/media/analysis-demo.mp4" poster="/site/media/analysis-demo.webp"
+               autoplay muted loop playsinline aria-label="…"></video></div> -->
+        <figure class="asset-slot reveal" data-asset="analysis-demo">
+          <div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>
+            <b>Screen recording to come</b>
+            <span>The Analysis screen stepping through a swing and marking takeaway, top and impact.</span>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="chapter" aria-labelledby="more-title">
       <div class="wrap">
-        <h2>Coming soon to the App Store</h2>
-        <p>Questions in the meantime? We'd love to hear from you.</p>
-        <a class="mail-btn" href="mailto:SUPPORT_EMAIL_PLACEHOLDER">Contact us</a>
+        <div class="chapter-head reveal">
+          <h2 class="headline" id="more-title">Built for the range.</h2>
+        </div>
+        <div class="also reveal">
+          <div><h3>Ball tracker</h3><p>Trace the ball's flight on your swing video for a launch-monitor style view of each shot.</p></div>
+          <div><h3>Side by side</h3><p>Play two swings together, lined up at the top of the backswing, to see how your tempo changes.</p></div>
+          <div><h3>Practice log</h3><p>Time practiced, swings analyzed and your streak, on a year-long activity grid.</p></div>
+          <div><h3>No account needed</h3><p>Everything works on your phone. Sign in only if you want your stats backed up.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="promise" aria-labelledby="promise-title">
+      <div class="wrap reveal">
+        <h2 class="headline" id="promise-title">Your swings stay on your phone.</h2>
+        <p class="lead">Videos never leave your device. There are no ads, no analytics and no tracking. An account is optional and only syncs your practice stats.</p>
+        <a class="arrow-link" href="/privacy">Read the privacy policy
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
+        </a>
+      </div>
+    </section>
+
+    <section class="closing">
+      <div class="wrap reveal">
+        <h2 class="display">Coming soon to iPhone.</h2>
+        <p class="lead">3to1 Golf is nearly ready for the App Store. Questions before then? We'd love to hear from you.</p>
+        <a class="arrow-link" href="mailto:SUPPORT_EMAIL_PLACEHOLDER">Get in touch
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h10M8 3l4 4-4 4"/></svg>
+        </a>
       </div>
     </section>
   </main>
