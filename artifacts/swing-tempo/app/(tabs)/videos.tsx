@@ -32,6 +32,7 @@ import {
 } from "@/context/SwingLibraryContext";
 import { TEMPO_PLAYERS } from "@/data/tempoPlayers";
 import { generateThumbnail } from "@/utils/thumbnails";
+import { canPickVideos } from "@/utils/mediaAccess";
 
 const BLUE   = "#1A8CFF";
 const RED    = "#FF3B30";
@@ -96,8 +97,7 @@ export default function VideosScreen() {
   const pickVideo = useCallback(
     async (origin: SwingOrigin) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") return;
+      if (!(await canPickVideos())) return;
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         // Lets the OS's own picker UI (trim handles on iOS) crop the clip

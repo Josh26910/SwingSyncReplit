@@ -37,6 +37,7 @@ import { incrementSwingsAnalyzed } from "@/utils/sessions";
 import { computeSwingAnalysis } from "@/utils/swingAnalysis";
 import { addSwingRecord } from "@/utils/swingHistory";
 import { generateThumbnail } from "@/utils/thumbnails";
+import { canPickVideos } from "@/utils/mediaAccess";
 
 const FPS = 30;
 const MS_PER_FRAME = 1000 / FPS;
@@ -144,8 +145,7 @@ export default function AnalysisScreen() {
   }, [activeSwing?.id]);
 
   const pickVideo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
+    if (!(await canPickVideos())) {
       Alert.alert(
         "Permission Required",
         "Please allow access to your photo library to import videos."

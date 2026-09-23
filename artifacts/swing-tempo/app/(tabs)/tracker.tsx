@@ -31,6 +31,7 @@ import {
   type StatKey,
   type Stats,
 } from "@/utils/ballTrajectory";
+import { canPickVideos } from "@/utils/mediaAccess";
 
 const ORANGE = "#FF9F0A";
 type Mode = "idle" | "launch" | "apex" | "landing" | "calibrate";
@@ -139,8 +140,7 @@ export default function TrackerScreen() {
 
   // --- video import ---
   const pickVideo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
+    if (!(await canPickVideos())) {
       setStatusText("Photo library access is needed to import a video.");
       return;
     }
