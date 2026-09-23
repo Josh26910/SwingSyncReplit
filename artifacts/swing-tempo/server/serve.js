@@ -1,10 +1,17 @@
 /**
  * Standalone production server for Expo static builds.
  *
- * Serves the output of build.js (static-build/) with two special routes:
+ * Serves the output of build.js (static-build/) plus the public website:
  * - GET / or /manifest with expo-platform header → platform manifest JSON
- * - GET / without expo-platform → landing page HTML
+ * - GET / without expo-platform → marketing site (server/site/index.html)
+ * - GET /privacy, /support, /delete-account → site pages (the App Store /
+ *   Google Play privacy-policy, support, and account-deletion URLs)
+ * - GET /site/* → site assets (CSS, logo, favicon)
+ * - GET /expo-go → the Expo Go "scan to open" landing page for testers
  * Everything else falls through to static file serving from ./static-build/.
+ *
+ * SUPPORT_EMAIL (env) is substituted into the site pages; set it to an inbox
+ * someone actually reads.
  *
  * Zero external dependencies — uses only Node.js built-ins (http, fs, path).
  */
@@ -15,6 +22,14 @@ const path = require("path");
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const TEMPLATE_PATH = path.resolve(__dirname, "templates", "landing-page.html");
+const SITE_ROOT = path.resolve(__dirname, "site");
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@3to1golf.com";
+const SITE_PAGES = {
+  "/": "index.html",
+  "/privacy": "privacy.html",
+  "/support": "support.html",
+  "/delete-account": "delete-account.html",
+};
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
 
 const MIME_TYPES = {
@@ -27,6 +42,7 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".svg": "image/svg+xml",
+  ".webp": "image/webp",
   ".ico": "image/x-icon",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
@@ -81,6 +97,39 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
   res.end(html);
 }
 
+// Pages are read once at startup; they're small and only change on deploy.
+const sitePages = Object.fromEntries(
+  Object.entries(SITE_PAGES).map(([route, file]) => [
+    route,
+    fs
+      .readFileSync(path.join(SITE_ROOT, file), "utf-8")
+      .replace(/SUPPORT_EMAIL_PLACEHOLDER/g, SUPPORT_EMAIL),
+  ]),
+);
+
+function serveSitePage(route, res) {
+  res.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=300",
+  });
+  res.end(sitePages[route]);
+}
+
+function serveSiteAsset(assetPath, res) {
+  const filePath = path.join(SITE_ROOT, path.normalize(assetPath));
+  if (!filePath.startsWith(SITE_ROOT + path.sep) || filePath.endsWith(".html") || !fs.existsSync(filePath)) {
+    res.writeHead(404);
+    res.end("Not Found");
+    return;
+  }
+  const ext = path.extname(filePath).toLowerCase();
+  res.writeHead(200, {
+    "content-type": MIME_TYPES[ext] || "application/octet-stream",
+    "cache-control": "public, max-age=3600",
+  });
+  res.end(fs.readFileSync(filePath));
+}
+
 function serveStaticFile(urlPath, res) {
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, "");
   const filePath = path.join(STATIC_ROOT, safePath);
@@ -122,8 +171,19 @@ const server = http.createServer((req, res) => {
     }
 
     if (pathname === "/") {
-      return serveLandingPage(req, res, landingPageTemplate, appName);
+      return serveSitePage("/", res);
     }
+  }
+
+  const route = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (route !== "/" && SITE_PAGES[route]) {
+    return serveSitePage(route, res);
+  }
+  if (route === "/expo-go") {
+    return serveLandingPage(req, res, landingPageTemplate, appName);
+  }
+  if (pathname.startsWith("/site/")) {
+    return serveSiteAsset(pathname.slice("/site/".length), res);
   }
 
   serveStaticFile(pathname, res);

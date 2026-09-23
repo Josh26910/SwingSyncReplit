@@ -59,7 +59,7 @@ export default function WelcomeScreen() {
       Animated.timing(btnScale, { toValue: 1,    duration: 120, useNativeDriver: true }),
     ]).start(async () => {
       await recordSessionStart();
-      router.replace("/(tabs)/");
+      router.replace("/(tabs)");
     });
   }, [btnScale]);
 
@@ -108,12 +108,6 @@ export default function WelcomeScreen() {
 
           <ContributionGrid sessions={sessions} weeks={26} />
         </Animated.View>
-
-        {/* ── Ad placeholder ─────────────────────────────────── */}
-        <View style={styles.adPlaceholder}>
-          <Feather name="image" size={20} color="#333" />
-          <Text style={styles.adText}>Advertisement</Text>
-        </View>
 
         {/* ── Start Session button ───────────────────────────── */}
         <Animated.View style={{ transform: [{ scale: btnScale }], width: "100%" }}>
@@ -214,25 +208,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_500Medium",
     color: "#666666",
-  },
-  adPlaceholder: {
-    width: "100%",
-    height: 80,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1E1E1E",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 20,
-  },
-  adText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: "#333333",
-    letterSpacing: 1,
   },
   startBtn: {
     flexDirection: "row",
